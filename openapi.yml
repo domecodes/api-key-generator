@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: DekaRAG API
+  title: MobaRAG API
   description: |
-    Access all Features of DekaRAG through this API:
+    Access all Features of MobaRAG through this API:
     Features related to Azure Services are based on the official documentation to ease integration
     - https://learn.microsoft.com/en-us/azure/ai-services/openai/reference (Version 2024-10-21)
     - https://github.com/Azure/azure-rest-api-specs/blob/main/specification/cognitiveservices/data-plane/Azure.AI.OpenAI/stable/2024-10-01/openai.json
@@ -26,14 +26,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DekaRagApiKeyRequest'
+              $ref: '#/components/schemas/MobaRagApiKeyRequest'
       responses:
         '201':
           description: API token created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DekaRagApiKeyWithSecret'
+                $ref: '#/components/schemas/MobaRagApiKeyWithSecret'
     get:
       tags:
         - apikeys
@@ -47,7 +47,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DekaRagApiKey'
+                  $ref: '#/components/schemas/MobaRagApiKey'
   
   /v1/apikeys/{id}:
     get:
@@ -68,7 +68,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DekaRagApiKey'
+                $ref: '#/components/schemas/MobaRagApiKey'
         '404':
           description: Token not found
   
@@ -91,14 +91,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DekaRagApiKeyRequest'
+              $ref: '#/components/schemas/MobaRagApiKeyRequest'
       responses:
         '201':
           description: New API token created after rotation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DekaRagApiKeyWithSecret'
+                $ref: '#/components/schemas/MobaRagApiKeyWithSecret'
         '404':
           description: Token not found or not rotatable
   
@@ -254,7 +254,7 @@ paths:
 
 components:
   schemas:
-    DekaRagApiKeyRequest:
+    MobaRagApiKeyRequest:
       type: object
       properties:
         name:
@@ -269,7 +269,7 @@ components:
         - name
         - permissions
     
-    DekaRagApiKey:
+    MobaRagApiKey:
       type: object
       properties:
         id:
@@ -291,9 +291,9 @@ components:
         is_active:
           type: boolean
     
-    DekaRagApiKeyWithSecret:
+    MobaRagApiKeyWithSecret:
       allOf:
-        - $ref: '#/components/schemas/DekaRagApiKey'
+        - $ref: '#/components/schemas/MobaRagApiKey'
         - type: object
           properties:
             secret:

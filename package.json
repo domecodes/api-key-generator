@@ -1,7 +1,7 @@
 {
-  "name": "deka-api-generator",
+  "name": "Moba-api-generator",
   "version": "1.0.0",
-  "description": "DekaRAG API Key Generator mit OpenAPI v1 Mock-API",
+  "description": "MobaRAG API Key Generator mit OpenAPI v1 Mock-API",
   "main": "mock-api.js",
   "type": "module",
   "scripts": {
@@ -47,7 +47,7 @@
     "api",
     "mock",
     "openapi",
-    "dekarag",
+    "Mobarag",
     "vue",
     "frontend"
   ],

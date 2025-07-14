@@ -1,6 +1,6 @@
-# DekaRAG Mock API
+# MobaRAG Mock API
 
-Diese Mock-API implementiert die OpenAPI v1 Spezifikation für DekaRAG und kann als Grundlage für Frontend-Entwicklung verwendet werden.
+Diese Mock-API implementiert die OpenAPI v1 Spezifikation für MobaRAG und kann als Grundlage für Frontend-Entwicklung verwendet werden.
 
 ## Installation
 
