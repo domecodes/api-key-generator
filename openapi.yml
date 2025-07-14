@@ -1,0 +1,347 @@
+openapi: 3.0.0
+info:
+  title: DekaRAG API
+  description: |
+    Access all Features of DekaRAG through this API:
+    Features related to Azure Services are based on the official documentation to ease integration
+    - https://learn.microsoft.com/en-us/azure/ai-services/openai/reference (Version 2024-10-21)
+    - https://github.com/Azure/azure-rest-api-specs/blob/main/specification/cognitiveservices/data-plane/Azure.AI.OpenAI/stable/2024-10-01/openai.json
+  version: "v2.5.3"
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: usage
+    description: Usage Management API
+  - name: apikeys
+    description: Management of API KEYS
+paths:
+  /v1/apikeys:
+    post:
+      tags:
+        - apikeys
+      summary: Create a new API token
+      operationId: Create_Api_Key_V1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DekaRagApiKeyRequest'
+      responses:
+        '201':
+          description: API token created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DekaRagApiKeyWithSecret'
+    get:
+      tags:
+        - apikeys
+      summary: List all API tokens for the current user
+      operationId: Get_All_Api_Keys_V1
+      responses:
+        '200':
+          description: List of API tokens (without secret)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DekaRagApiKey'
+  
+  /v1/apikeys/{id}:
+    get:
+      tags:
+        - apikeys
+      summary: Get a single API token by ID
+      operationId: Get_Api_Key_V1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API token (without secret)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DekaRagApiKey'
+        '404':
+          description: Token not found
+  
+  /v1/apikeys/{id}/rotate:
+    post:
+      tags:
+        - apikeys
+      summary: Rotate an API token (deactivates old, creates new)
+      description: Deactivates the given API token and creates a new one with the provided parameters.
+      operationId: Rotate_Key_V1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DekaRagApiKeyRequest'
+      responses:
+        '201':
+          description: New API token created after rotation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DekaRagApiKeyWithSecret'
+        '404':
+          description: Token not found or not rotatable
+  
+  /v1/apikeys/{id}/deactivate:
+    put:
+      tags:
+        - apikeys
+      summary: Deactivate an API token
+      operationId: Deactivate_Key_V1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Token successfully deactivated
+        '404':
+          description: Token not found
+  
+  /v1/usage/ai:
+    get:
+      tags:
+        - usage
+      summary: Tracks the usage of the AI service
+      description: Returns the usage in terms of tokens per model per time period.
+      operationId: Usage_AI_Get_V1
+      parameters:
+        - in: query
+          name: from_date
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Start date of the time interval (UTC). If left empty it uses the earliest known date
+        - in: query
+          name: to_date
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: End date of the time interval (UTC). If left empty it uses the latest known date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageResponse'
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Internal server error
+  
+  /v1/usage/ai/summarize:
+    get:
+      tags:
+        - usage
+      summary: Returns the usage summary by type, user and cost factors
+      description: Returns the usage summary by type, user and cost factors
+      operationId: Usage_AI_Summary_Get_V1
+      parameters:
+        - in: query
+          name: from_date
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Start date of the time interval (UTC). If left empty it uses the earliest known date
+        - in: query
+          name: to_date
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: End date of the time interval (UTC). If left empty it uses the latest known date
+        - in: query
+          name: by
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - day
+                - month
+                - year
+                - tag
+          description: Parameters to group by: day|month|year|tag
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryUsageResponse'
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Internal server error
+  
+  /v1/admin/usage/ai/summarize:
+    get:
+      security:
+        - resourceOwnerAuth: []
+      tags:
+        - usage
+        - admin
+      summary: Returns the usage summary by type, user and cost factors
+      description: Returns the usage summary by type, user and cost factors
+      operationId: Admin_Usage_AI_Summary_Get_V1
+      parameters:
+        - in: query
+          name: from_date
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Start date of the time interval (UTC). If left empty it uses the earliest known date
+        - in: query
+          name: to_date
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: End date of the time interval (UTC). If left empty it uses the latest known date
+        - in: query
+          name: by
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - day
+                - month
+                - year
+                - tag
+          description: Parameters to group by: day|month|year|tag
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryUsageResponse'
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Internal server error
+
+components:
+  schemas:
+    DekaRagApiKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the API key
+        permissions:
+          type: array
+          items:
+            type: string
+          description: List of permissions for the API key
+      required:
+        - name
+        - permissions
+    
+    DekaRagApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        is_active:
+          type: boolean
+    
+    DekaRagApiKeyWithSecret:
+      allOf:
+        - $ref: '#/components/schemas/DekaRagApiKey'
+        - type: object
+          properties:
+            secret:
+              type: string
+              description: The API key secret (only shown once on creation)
+    
+    UsageResponse:
+      type: object
+      properties:
+        usage:
+          type: array
+          items:
+            type: object
+            properties:
+              model:
+                type: string
+              tokens_used:
+                type: integer
+              cost:
+                type: number
+              timestamp:
+                type: string
+                format: date-time
+    
+    SummaryUsageResponse:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            total_tokens:
+              type: integer
+            total_cost:
+              type: number
+            by_model:
+              type: object
+            by_user:
+              type: object
+            by_period:
+              type: object
+  
+  securitySchemes:
+    resourceOwnerAuth:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /oauth/token
+          scopes:
+            admin: Admin access
+            user: User access 
+  

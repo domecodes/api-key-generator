@@ -1,0 +1,62 @@
+<template>
+  <table v-if="keys.length" class="w-full text-left border-collapse bg-white rounded-xl shadow">
+    <thead>
+      <tr class="text-gray-700 border-b text-xs uppercase tracking-wider">
+        <th class="py-3 px-4 font-semibold">Name</th>
+        <th class="py-3 px-4 font-semibold">Secret Key</th>
+        <th class="py-3 px-4 font-semibold">Created</th>
+        <th class="py-3 px-4 font-semibold">Last Used</th>
+        <th class="py-3 px-4 font-semibold">Expires</th>
+        <th class="py-3 px-4 font-semibold">Created By</th>
+        <th class="py-3 px-4 font-semibold">Permissions</th>
+        <th class="py-3 px-4 font-semibold text-right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <ApiKeyRow
+        v-for="key in keys"
+        :key="key.id"
+        :keyData="key"
+        :editing="editingKey === key.id"
+        :editingName="editingName"
+        @edit="$emit('edit', $event)"
+        @save="$emit('save', $event)"
+        @cancel="$emit('cancel')"
+        @revoke="$emit('revoke', $event)"
+        @name-input="$emit('name-input', $event)"
+      />
+    </tbody>
+  </table>
+  <div v-else class="text-center text-gray-500 py-8">No API keys available.</div>
+</template>
+
+<script setup lang="ts">
+import ApiKeyRow from './ApiKeyRow.vue';
+
+// Legacy interface for backward compatibility
+interface LegacyApiKey {
+  id: string
+  apiKey: string
+  name: string
+  permissions: string
+  createdAt: string
+  createdBy: string
+  validUntil: string
+  lastUsed: string
+  status: string
+}
+
+const props = defineProps<{
+  keys: LegacyApiKey[]
+  editingKey: string | null
+  editingName: string
+}>()
+
+const emits = defineEmits<{
+  edit: [key: LegacyApiKey]
+  save: [apiKey: string]
+  cancel: []
+  revoke: [keyId: string]
+  'name-input': [value: string]
+}>()
+</script> 
