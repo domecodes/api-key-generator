@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getUserInfo, keycloak } from '@/auth/keycloak'
 import ApiKeyCreateModal from '@/components/apikey/ApiKeyCreateModal.vue'
 import ApiKeyEditModal from '@/components/apikey/ApiKeyEditModal.vue'
 import ApiKeyTable from '@/components/apikey/ApiKeyTable.vue'
@@ -55,12 +56,29 @@ const permissionOptions = [
   { value: 'read', label: 'Read' },
   { value: 'write', label: 'Write' },
   { value: 'admin', label: 'Admin' },
-  { value: 'delete', label: 'Delete' }
+  { value: 'delete', label: 'Delete' },
 ]
 
-const profile = {
-  name: 'Domenic Schumacher',
-  avatar: 'https://ui-avatars.com/api/?name=Domenic+Schumacher&background=0D8ABC&color=fff',
+// Benutzerinformationen aus Keycloak
+const userProfile = computed(() => {
+  const userInfo = getUserInfo()
+  if (userInfo) {
+    const name =
+      userInfo.name || userInfo.preferred_username || userInfo.email || 'Unbekannter Benutzer'
+    const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0D8ABC&color=fff`
+    return { name, avatar }
+  }
+  return {
+    name: 'Unbekannter Benutzer',
+    avatar: 'https://ui-avatars.com/api/?name=Unknown&background=0D8ABC&color=fff',
+  }
+})
+
+// Logout-Funktion
+const handleLogout = () => {
+  keycloak.logout({
+    redirectUri: window.location.origin,
+  })
 }
 
 // Legacy-Kompatibilität für bestehende Komponenten
@@ -71,10 +89,10 @@ const legacyKeys = computed(() => {
     name: key.name,
     permissions: key.permissions.join(', '),
     createdAt: key.created_at,
-    createdBy: profile.name,
+    createdBy: userProfile.value.name,
     validUntil: key.expires_at,
     lastUsed: 'Never',
-    status: key.is_active ? 'active' : 'revoked'
+    status: key.is_active ? 'active' : 'revoked',
   }))
 })
 
@@ -99,22 +117,22 @@ const createKey = async () => {
   try {
     const requestBody = {
       name: newKeyName.value,
-      permissions: newKeyPermissions.value
+      permissions: newKeyPermissions.value,
     }
-    
+
     const res = await fetch(`${API_BASE}/apikeys`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
     })
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
     const data = await res.json()
-    
+
     createdSecret.value = data.secret || ''
     createdKeyName.value = data.name
     createdKeyPermissions.value = data.permissions
     createdKeyValidUntil.value = data.expires_at
-    createdKeyCreatedBy.value = profile.name
+    createdKeyCreatedBy.value = userProfile.value.name
     await loadKeys()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Fehler beim Erstellen des API-Keys'
@@ -128,12 +146,14 @@ const revokeKey = async (keyId: string) => {
   try {
     const res = await fetch(`${API_BASE}/apikeys/${keyId}/deactivate`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     })
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
     await loadKeys()
     showRevokeSuccessMessage.value = true
-    setTimeout(() => { showRevokeSuccessMessage.value = false }, 3000)
+    setTimeout(() => {
+      showRevokeSuccessMessage.value = false
+    }, 3000)
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Fehler beim Deaktivieren'
   }
@@ -149,7 +169,7 @@ const showCreateSuccessMessage = ref(false)
 function startEditing(key: LegacyApiKey) {
   const newKey = keys.value.find((k: ApiKey) => k.secret === key.apiKey || k.id === key.apiKey)
   if (!newKey) return
-  
+
   editModalName.value = newKey.name
   editModalPermissions.value = [...newKey.permissions]
   editModalKey.value = newKey
@@ -167,18 +187,20 @@ async function saveEditModal() {
   try {
     const requestBody = {
       name: editModalName.value,
-      permissions: editModalPermissions.value
+      permissions: editModalPermissions.value,
     }
-    
+
     const res = await fetch(`${API_BASE}/apikeys/${editModalKey.value.id}/rotate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
     })
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
     await loadKeys()
     showEditSuccessMessage.value = true
-    setTimeout(() => { showEditSuccessMessage.value = false }, 3000)
+    setTimeout(() => {
+      showEditSuccessMessage.value = false
+    }, 3000)
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Fehler beim Aktualisieren'
   }
@@ -213,14 +235,18 @@ async function createKeyModal() {
   await createKey()
   showCreateModal.value = false
   showCreateSuccessMessage.value = true
-  setTimeout(() => { showCreateSuccessMessage.value = false }, 3000)
+  setTimeout(() => {
+    showCreateSuccessMessage.value = false
+  }, 3000)
 }
 
 const copyApiKey = async (apiKey: string) => {
   try {
     await navigator.clipboard.writeText(apiKey)
     showSuccessMessage.value = true
-    setTimeout(() => { showSuccessMessage.value = false }, 3000)
+    setTimeout(() => {
+      showSuccessMessage.value = false
+    }, 3000)
   } catch (err) {
     error.value = 'Fehler beim Kopieren'
   }
@@ -233,7 +259,7 @@ const saveEdit = async (apiKey: string) => {
     error.value = 'Key nicht gefunden'
     return
   }
-  
+
   await saveEditModal()
   editingKey.value = null
   editingName.value = ''
@@ -257,12 +283,44 @@ onMounted(() => {
         <span class="text-xl font-bold text-blue-700">API Dashboard</span>
       </div>
       <nav class="flex-1 flex flex-col gap-2">
-        <button @click="activeSidebar = 'api'" :class="activeSidebar === 'api' ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700'" class="flex items-center gap-3 px-3 py-2 rounded transition-colors">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2a4 4 0 014-4h4"/></svg>
+        <button
+          @click="activeSidebar = 'api'"
+          :class="
+            activeSidebar === 'api' ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700'
+          "
+          class="flex items-center gap-3 px-3 py-2 rounded transition-colors"
+        >
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2a4 4 0 014-4h4" />
+          </svg>
           API keys
         </button>
-        <button @click="activeSidebar = 'usage'" :class="activeSidebar === 'usage' ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700'" class="flex items-center gap-3 px-3 py-2 rounded transition-colors">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/></svg>
+        <button
+          @click="activeSidebar = 'usage'"
+          :class="
+            activeSidebar === 'usage' ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700'
+          "
+          class="flex items-center gap-3 px-3 py-2 rounded transition-colors"
+        >
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"
+            />
+          </svg>
           Usage
         </button>
       </nav>
@@ -271,8 +329,22 @@ onMounted(() => {
       <!-- Topbar mit Profil rechts oben -->
       <header class="flex items-center justify-end bg-white border-b px-8 py-4">
         <div class="flex items-center gap-3">
-          <span class="text-gray-700 font-medium text-sm">{{ profile.name }}</span>
-          <img :src="profile.avatar" alt="avatar" class="w-9 h-9 rounded-full border" />
+          <span class="text-gray-700 font-medium text-sm">{{ userProfile.name }}</span>
+          <img :src="userProfile.avatar" alt="avatar" class="w-9 h-9 rounded-full border" />
+          <button
+            @click="handleLogout"
+            class="ml-3 px-3 py-1 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+            title="Abmelden"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+              />
+            </svg>
+          </button>
         </div>
       </header>
       <main class="flex-1 bg-gray-50 p-10">
@@ -281,10 +353,26 @@ onMounted(() => {
           <div class="flex justify-between items-center mb-6 max-w-6xl mx-auto">
             <div>
               <h1 class="text-2xl font-bold text-gray-800 mb-1">API keys</h1>
-              <p class="text-gray-600 text-sm max-w-2xl">As an owner of this project, you can view and manage all API keys in this project.<br>Do not share your API key with others or expose it in the browser or other client-side code. To protect your account's security, API keys may automatically be disabled if they have leaked publicly.</p>
+              <p class="text-gray-600 text-sm max-w-2xl">
+                As an owner of this project, you can view and manage all API keys in this
+                project.<br />Do not share your API key with others or expose it in the browser or
+                other client-side code. To protect your account's security, API keys may
+                automatically be disabled if they have leaked publicly.
+              </p>
             </div>
-            <button @click="openModal" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2 text-sm">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            <button
+              @click="openModal"
+              class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2 text-sm"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
               Create new secret key
             </button>
           </div>
@@ -297,10 +385,13 @@ onMounted(() => {
               @save="saveEdit"
               @cancel="cancelEdit"
               @revoke="revokeKey"
-              @name-input="val => editingName = val"
+              @name-input="(val) => (editingName = val)"
             />
           </div>
-          <div v-if="error" class="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg max-w-6xl mx-auto">
+          <div
+            v-if="error"
+            class="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg max-w-6xl mx-auto"
+          >
             <p class="text-sm text-red-600">{{ error }}</p>
           </div>
           <!-- Edit Modal -->
@@ -309,8 +400,10 @@ onMounted(() => {
             :name="editModalName"
             :permissions="editModalPermissions.join(', ')"
             :permission-options="permissionOptions.map((p: any) => p.label)"
-            @update:name="val => editModalName = val"
-            @update:permissions="val => editModalPermissions = val.split(', ').map((p: any) => p.trim())"
+            @update:name="(val) => (editModalName = val)"
+            @update:permissions="
+              (val) => (editModalPermissions = val.split(', ').map((p: any) => p.trim()))
+            "
             @cancel="closeEditModal"
             @save="saveEditModal"
           />
@@ -321,8 +414,10 @@ onMounted(() => {
             :permissions="newKeyPermissions.join(', ')"
             :permission-options="permissionOptions.map((p: any) => p.label)"
             :is-creating="isCreating"
-            @update:name="val => newKeyName = val"
-            @update:permissions="val => newKeyPermissions = val.split(', ').map((p: any) => p.trim())"
+            @update:name="(val) => (newKeyName = val)"
+            @update:permissions="
+              (val) => (newKeyPermissions = val.split(', ').map((p: any) => p.trim()))
+            "
             @cancel="closeCreateModal"
             @create="createKeyModal"
           />
@@ -341,42 +436,89 @@ onMounted(() => {
     </div>
 
     <!-- Modal für Key-Erstellung -->
-    <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+    <div
+      v-if="showModal"
+      class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
+    >
       <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-md relative">
-        <button @click="closeCreateModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        <button
+          @click="closeCreateModal"
+          class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+        >
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
         </button>
         <template v-if="!createdSecret">
           <h3 class="text-xl font-bold mb-2">Neuen Secret Key erstellen</h3>
-          <p class="mb-4 text-gray-600 text-sm">Geben Sie optional einen Namen für Ihren Key ein und setzen Sie Berechtigungen.</p>
+          <p class="mb-4 text-gray-600 text-sm">
+            Geben Sie optional einen Namen für Ihren Key ein und setzen Sie Berechtigungen.
+          </p>
           <label class="block mb-2 text-sm font-medium">Name (optional)</label>
-          <input v-model="newKeyName" class="w-full mb-4 px-3 py-2 border rounded" placeholder="z.B. My App Key" />
+          <input
+            v-model="newKeyName"
+            class="w-full mb-4 px-3 py-2 border rounded"
+            placeholder="z.B. My App Key"
+          />
           <label class="block mb-2 text-sm font-medium">Berechtigungen</label>
           <div class="mb-6 space-y-2">
             <label v-for="perm in permissionOptions" :key="perm.value" class="flex items-center">
-              <input 
-                type="checkbox" 
-                :value="perm.value"
-                v-model="newKeyPermissions"
-                class="mr-2"
-              />
+              <input type="checkbox" :value="perm.value" v-model="newKeyPermissions" class="mr-2" />
               {{ perm.label }}
             </label>
           </div>
-          <button @click="createKey" :disabled="isCreating" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center">
-            <svg v-if="isCreating" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <button
+            @click="createKey"
+            :disabled="isCreating"
+            class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center"
+          >
+            <svg
+              v-if="isCreating"
+              class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
             </svg>
             {{ isCreating ? 'Erstelle...' : 'Secret Key erstellen' }}
           </button>
         </template>
         <template v-else>
           <h3 class="text-xl font-bold mb-2">Speichern Sie Ihren Key</h3>
-          <p class="mb-4 text-gray-600 text-sm">Bitte speichern Sie Ihren Secret Key an einem sicheren Ort, da <b>Sie ihn nicht mehr anzeigen können</b>.</p>
+          <p class="mb-4 text-gray-600 text-sm">
+            Bitte speichern Sie Ihren Secret Key an einem sicheren Ort, da
+            <b>Sie ihn nicht mehr anzeigen können</b>.
+          </p>
           <div class="mb-4 flex items-center border rounded px-3 py-2 bg-gray-50">
-            <input :value="createdSecret" readonly class="flex-1 bg-transparent font-mono text-xs select-all outline-none" />
-            <button @click="copyApiKey(createdSecret)" class="ml-2 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">Kopieren</button>
+            <input
+              :value="createdSecret"
+              readonly
+              class="flex-1 bg-transparent font-mono text-xs select-all outline-none"
+            />
+            <button
+              @click="copyApiKey(createdSecret)"
+              class="ml-2 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs"
+            >
+              Kopieren
+            </button>
           </div>
           <div class="mb-4">
             <label class="block text-xs text-gray-500">Name</label>
@@ -388,13 +530,20 @@ onMounted(() => {
           </div>
           <div class="mb-4">
             <label class="block text-xs text-gray-500">Gültig bis</label>
-            <div class="font-medium">{{ createdKeyValidUntil ? new Date(createdKeyValidUntil).toLocaleDateString() : '—' }}</div>
+            <div class="font-medium">
+              {{ createdKeyValidUntil ? new Date(createdKeyValidUntil).toLocaleDateString() : '—' }}
+            </div>
           </div>
           <div class="mb-6">
             <label class="block text-xs text-gray-500">Erstellt von</label>
             <div class="font-medium">{{ createdKeyCreatedBy }}</div>
           </div>
-          <button @click="closeCreateModal" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg">Fertig</button>
+          <button
+            @click="closeCreateModal"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg"
+          >
+            Fertig
+          </button>
         </template>
       </div>
     </div>
@@ -407,7 +556,12 @@ onMounted(() => {
     >
       <div class="flex items-center space-x-2">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M5 13l4 4L19 7"
+          ></path>
         </svg>
         <span>API-Key wurde kopiert!</span>
       </div>
@@ -420,7 +574,12 @@ onMounted(() => {
     >
       <div class="flex items-center space-x-2">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M5 13l4 4L19 7"
+          ></path>
         </svg>
         <span>Änderungen gespeichert!</span>
       </div>
@@ -433,7 +592,12 @@ onMounted(() => {
     >
       <div class="flex items-center space-x-2">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M5 13l4 4L19 7"
+          ></path>
         </svg>
         <span>API-Key erfolgreich erstellt!</span>
       </div>
@@ -446,7 +610,12 @@ onMounted(() => {
     >
       <div class="flex items-center space-x-2">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M5 13l4 4L19 7"
+          ></path>
         </svg>
         <span>API-Key erfolgreich deaktiviert!</span>
       </div>
