@@ -1,10 +1,6 @@
-# Setup Guide - OpenAPI v1 Integration
+# Setup Anleitung
 
-## Übersicht
-
-Die Anwendung wurde aktualisiert, um mit der OpenAPI v1 Spezifikation zu arbeiten. Die Mock-API implementiert jetzt die standardisierten Endpunkte und Datenstrukturen.
-
-## Installation
+## 🚀 Schnellstart
 
 ### 1. Dependencies installieren
 
@@ -12,142 +8,135 @@ Die Anwendung wurde aktualisiert, um mit der OpenAPI v1 Spezifikation zu arbeite
 npm install
 ```
 
-### 2. Mock-API starten
+### 2. Mock-API Server starten (Port 3001)
 
 ```bash
-npm start
+npm run dev
 ```
 
-Die Mock-API läuft dann auf `http://localhost:8080`
-
-### 3. Frontend starten
-
-In einem neuen Terminal:
+### 3. Frontend Development Server starten (Port 5173)
 
 ```bash
 npm run frontend:dev
 ```
 
-Das Frontend läuft dann auf `http://localhost:5173`
+### 4. Oder beide Server gleichzeitig starten
 
-## Konfiguration
-
-### API Base URL
-
-Erstelle eine `.env` Datei im Root-Verzeichnis:
-
-```env
-VITE_API_BASE=http://localhost:8080/v1
-```
-
-## Neue Features
-
-### API Key Management
-
-- **Erstellen**: `POST /v1/apikeys` mit `{ name, permissions: string[] }`
-- **Auflisten**: `GET /v1/apikeys` 
-- **Einzeln abrufen**: `GET /v1/apikeys/{id}`
-- **Rotieren**: `POST /v1/apikeys/{id}/rotate`
-- **Deaktivieren**: `PUT /v1/apikeys/{id}/deactivate`
-
-### Usage Management
-
-- **Usage Daten**: `GET /v1/usage/ai`
-- **Usage Zusammenfassung**: `GET /v1/usage/ai/summarize`
-- **Admin Usage**: `GET /v1/admin/usage/ai/summarize`
-
-## Datenstruktur-Änderungen
-
-### API Key Schema (neu)
-```typescript
-interface ApiKey {
-  id: string
-  name: string
-  permissions: string[]  // Array statt String
-  created_at: string
-  expires_at: string
-  is_active: boolean
-  secret?: string  // nur bei Erstellung
-}
-```
-
-### Permissions (neu)
-- `read` - Lesezugriff
-- `write` - Schreibzugriff  
-- `admin` - Administratorzugriff
-- `delete` - Löschzugriff
-
-## Frontend-Anpassungen
-
-### 1. Neue Interface-Definitionen
-Die TypeScript-Interfaces wurden entsprechend der OpenAPI-Spezifikation aktualisiert.
-
-### 2. API-Calls
-Alle API-Calls verwenden jetzt die v1 Endpunkte:
-- `http://localhost:8080/v1/apikeys` statt `http://localhost:3000/api/keys`
-- Neue Request/Response-Formate
-
-### 3. Permissions
-- Checkbox-basierte Auswahl statt Dropdown
-- Array-basierte Permissions statt String
-
-### 4. Legacy-Kompatibilität
-Die bestehenden Komponenten funktionieren weiterhin durch eine Legacy-Kompatibilitätsschicht.
-
-## Testing
-
-### API Key erstellen
 ```bash
-curl -X POST http://localhost:8080/v1/apikeys \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Test Key",
-    "permissions": ["read", "write"]
-  }'
+npm run dev:all
 ```
 
-### API Keys auflisten
+## 🔧 Konfiguration
+
+### Mock-Authentifizierung für Entwicklung
+
+Das System verwendet automatisch Mock-Authentifizierung wenn Keycloak nicht verfügbar ist. Für verschiedene Rollen:
+
+**Im Browser Console:**
+
+```javascript
+// User-Rolle (Standard)
+localStorage.setItem('mock-role', 'user')
+
+// Admin-Rolle
+localStorage.setItem('mock-role', 'admin')
+
+// Super-Admin-Rolle
+localStorage.setItem('mock-role', 'super_admin')
+```
+
+**Oder direkt in der App:**
+
+```javascript
+import { setMockRole } from '@/auth/keycloak'
+
+// Rolle ändern
+setMockRole('admin')
+```
+
+### Ports
+
+- **Mock-API Server**: `http://localhost:3001`
+- **Frontend Development**: `http://localhost:5173`
+- **Keycloak (Produktion)**: `http://localhost:8080`
+
+## 🎯 Verfügbare Endpunkte
+
+### OpenAPI v1 Endpunkte (mit JWT Auth)
+
+- `POST http://localhost:3001/v1/apikeys` - Create API key
+- `GET  http://localhost:3001/v1/apikeys` - List API keys
+- `GET  http://localhost:3001/v1/apikeys/:id` - Get single API key
+- `POST http://localhost:3001/v1/apikeys/:id/rotate` - Rotate API key
+- `PUT  http://localhost:3001/v1/apikeys/:id/deactivate` - Deactivate API key
+- `GET  http://localhost:3001/v1/usage/ai` - Get usage data
+- `GET  http://localhost:3001/v1/usage/ai/summarize` - Get usage summary
+
+### Admin Endpunkte
+
+- `GET  http://localhost:3001/v1/admin/apikeys` - Get all API keys
+- `POST http://localhost:3001/v1/admin/apikeys` - Create API key for user
+- `PUT  http://localhost:3001/v1/admin/apikeys/:id/deactivate` - Deactivate any API key
+- `GET  http://localhost:3001/v1/admin/usage/ai` - Get all usage data
+- `GET  http://localhost:3001/v1/admin/usage/ai/summarize` - Admin usage summary
+
+### Super Admin Endpunkte
+
+- `GET  http://localhost:3001/v1/admin/users` - Get all users
+- `PUT  http://localhost:3001/v1/admin/users/:id/role` - Update user role
+- `PUT  http://localhost:3001/v1/admin/users/:id/deactivate` - Deactivate user
+
+## 🔐 Rollen und Berechtigungen
+
+### User
+
+- Eigene API-Keys verwalten
+- Eigene Usage einsehen
+- API-Keys erstellen, bearbeiten, deaktivieren
+
+### Admin
+
+- Alle API-Keys einsehen
+- API-Keys für andere Benutzer erstellen
+- Admin Usage einsehen
+- Alle User-Funktionen
+
+### Super Admin
+
+- Benutzer verwalten
+- Rollen ändern
+- Benutzer deaktivieren
+- Alle Admin-Funktionen
+
+## 🧪 Testing
+
+### JWT Token Testing
+
 ```bash
-curl http://localhost:8080/v1/apikeys
+# User-Rolle (Standard)
+curl -H "Authorization: Bearer token" http://localhost:3001/v1/apikeys
+
+# Admin-Rolle
+curl -H "Authorization: Bearer token" "http://localhost:3001/v1/apikeys?token=admin"
+
+# Super-Admin-Rolle
+curl -H "Authorization: Bearer token" "http://localhost:3001/v1/apikeys?token=super_admin"
 ```
 
-### Usage Daten abrufen
-```bash
-curl "http://localhost:8080/v1/usage/ai?from_date=2024-01-01T00:00:00Z"
-```
+## 🚨 Troubleshooting
 
-## Troubleshooting
+### Keycloak nicht verfügbar
+
+Das System fällt automatisch auf Mock-Authentifizierung zurück. Siehe Mock-Authentifizierung oben.
 
 ### Port-Konflikte
-- Mock-API: Port 8080
-- Frontend: Port 5173
-- Stelle sicher, dass die Ports frei sind
 
-### CORS-Fehler
-Die Mock-API hat CORS aktiviert. Falls Probleme auftreten, prüfe die CORS-Konfiguration.
+- Mock-API läuft auf Port 3001
+- Keycloak sollte auf Port 8080 laufen
+- Frontend läuft auf Port 5173
 
-### TypeScript-Fehler
-Falls TypeScript-Fehler auftreten, führe aus:
-```bash
-npm run type-check
-```
+### Rollen nicht sichtbar
 
-### Frontend Build
-Für Produktion:
-```bash
-npm run frontend:build
-npm run frontend:preview
-```
-
-## Migration von der alten API
-
-### Alte Endpunkte
-- `POST /api/generate-key` → `POST /v1/apikeys`
-- `GET /api/keys` → `GET /v1/apikeys`
-- `POST /api/revoke-key` → `PUT /v1/apikeys/{id}/deactivate`
-
-### Datenstruktur
-- `permissions: string` → `permissions: string[]`
-- `status: string` → `is_active: boolean`
-- `createdAt` → `created_at`
-- `validUntil` → `expires_at` 
+1. Browser Console öffnen
+2. `localStorage.setItem('mock-role', 'admin')` ausführen
+3. Seite neu laden

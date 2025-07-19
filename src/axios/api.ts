@@ -3,7 +3,7 @@ import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestCo
 
 // Axios-Instanz erstellen
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || 'http://localhost:8080/v1',
+  baseURL: import.meta.env.VITE_API_BASE || 'http://localhost:3001/v1',
   timeout: 10000,
 })
 

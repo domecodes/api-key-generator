@@ -11,6 +11,7 @@
     "frontend:dev": "vite",
     "frontend:build": "vite build",
     "frontend:preview": "vite preview",
+    "dev:all": "npm-run-all2 --parallel dev frontend:dev",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
     "format": "prettier --write src/"
