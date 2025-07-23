@@ -46,7 +46,7 @@ const isLoading = ref(false)
 const error = ref('')
 const showSuccessMessage = ref(false)
 const isCreating = ref(false)
-const showModal = ref(false)
+
 const newKeyName = ref('')
 const newKeyPermissions = ref<string[]>(['read'])
 const createdSecret = ref('')
@@ -243,6 +243,8 @@ async function saveEditModal() {
 }
 
 const showCreateModal = ref(false)
+const showKeyDisplayModal = ref(false)
+
 function openModal() {
   showCreateModal.value = true
   newKeyName.value = ''
@@ -265,9 +267,19 @@ function closeCreateModal() {
   createdKeyCreatedBy.value = ''
 }
 
+function closeKeyDisplayModal() {
+  showKeyDisplayModal.value = false
+  createdSecret.value = ''
+  createdKeyName.value = ''
+  createdKeyPermissions.value = []
+  createdKeyValidUntil.value = ''
+  createdKeyCreatedBy.value = ''
+}
+
 async function createKeyModal() {
   await createKey()
   showCreateModal.value = false
+  showKeyDisplayModal.value = true
   showCreateSuccessMessage.value = true
   setTimeout(() => {
     showCreateSuccessMessage.value = false
@@ -581,6 +593,59 @@ onMounted(() => {
             @cancel="closeCreateModal"
             @create="createKeyModal"
           />
+
+          <!-- Key Display Modal -->
+          <div
+            v-if="showKeyDisplayModal"
+            class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
+          >
+            <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-md relative">
+              <h3 class="text-xl font-bold mb-2">Speichern Sie Ihren Key</h3>
+              <p class="mb-4 text-gray-600 text-sm">
+                Bitte speichern Sie Ihren Secret Key an einem sicheren Ort, da
+                <b>Sie ihn nicht mehr anzeigen können</b>.
+              </p>
+              <div class="mb-4 flex items-center border rounded px-3 py-2 bg-gray-50">
+                <input
+                  :value="createdSecret"
+                  readonly
+                  class="flex-1 bg-transparent font-mono text-xs select-all outline-none"
+                />
+                <button
+                  @click="copyApiKey(createdSecret)"
+                  class="ml-2 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs"
+                >
+                  Kopieren
+                </button>
+              </div>
+              <div class="mb-4">
+                <label class="block text-xs text-gray-500">Name</label>
+                <div class="font-medium">{{ createdKeyName || '—' }}</div>
+              </div>
+              <div class="mb-4">
+                <label class="block text-xs text-gray-500">Berechtigungen</label>
+                <div class="font-medium">{{ createdKeyPermissions.join(', ') }}</div>
+              </div>
+              <div class="mb-4">
+                <label class="block text-xs text-gray-500">Gültig bis</label>
+                <div class="font-medium">
+                  {{
+                    createdKeyValidUntil ? new Date(createdKeyValidUntil).toLocaleDateString() : '—'
+                  }}
+                </div>
+              </div>
+              <div class="mb-6">
+                <label class="block text-xs text-gray-500">Erstellt von</label>
+                <div class="font-medium">{{ createdKeyCreatedBy }}</div>
+              </div>
+              <button
+                @click="closeKeyDisplayModal"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg"
+              >
+                Fertig
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Usage Section -->
@@ -705,119 +770,6 @@ onMounted(() => {
           </div>
         </div>
       </main>
-    </div>
-
-    <!-- Modal für Key-Erstellung -->
-    <div
-      v-if="showModal"
-      class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
-    >
-      <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-md relative">
-        <button
-          @click="closeCreateModal"
-          class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-        >
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-        <template v-if="!createdSecret">
-          <h3 class="text-xl font-bold mb-2">Neuen Secret Key erstellen</h3>
-          <p class="mb-4 text-gray-600 text-sm">
-            Geben Sie optional einen Namen für Ihren Key ein und setzen Sie Berechtigungen.
-          </p>
-          <label class="block mb-2 text-sm font-medium">Name (optional)</label>
-          <input
-            v-model="newKeyName"
-            class="w-full mb-4 px-3 py-2 border rounded"
-            placeholder="z.B. My App Key"
-          />
-          <label class="block mb-2 text-sm font-medium">Berechtigungen</label>
-          <div class="mb-6 space-y-2">
-            <label v-for="perm in permissionOptions" :key="perm.value" class="flex items-center">
-              <input type="checkbox" :value="perm.value" v-model="newKeyPermissions" class="mr-2" />
-              {{ perm.label }}
-            </label>
-          </div>
-          <button
-            @click="createKey"
-            :disabled="isCreating"
-            class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center"
-          >
-            <svg
-              v-if="isCreating"
-              class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-              ></circle>
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-            {{ isCreating ? 'Erstelle...' : 'Secret Key erstellen' }}
-          </button>
-        </template>
-        <template v-else>
-          <h3 class="text-xl font-bold mb-2">Speichern Sie Ihren Key</h3>
-          <p class="mb-4 text-gray-600 text-sm">
-            Bitte speichern Sie Ihren Secret Key an einem sicheren Ort, da
-            <b>Sie ihn nicht mehr anzeigen können</b>.
-          </p>
-          <div class="mb-4 flex items-center border rounded px-3 py-2 bg-gray-50">
-            <input
-              :value="createdSecret"
-              readonly
-              class="flex-1 bg-transparent font-mono text-xs select-all outline-none"
-            />
-            <button
-              @click="copyApiKey(createdSecret)"
-              class="ml-2 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs"
-            >
-              Kopieren
-            </button>
-          </div>
-          <div class="mb-4">
-            <label class="block text-xs text-gray-500">Name</label>
-            <div class="font-medium">{{ createdKeyName || '—' }}</div>
-          </div>
-          <div class="mb-4">
-            <label class="block text-xs text-gray-500">Berechtigungen</label>
-            <div class="font-medium">{{ createdKeyPermissions.join(', ') }}</div>
-          </div>
-          <div class="mb-4">
-            <label class="block text-xs text-gray-500">Gültig bis</label>
-            <div class="font-medium">
-              {{ createdKeyValidUntil ? new Date(createdKeyValidUntil).toLocaleDateString() : '—' }}
-            </div>
-          </div>
-          <div class="mb-6">
-            <label class="block text-xs text-gray-500">Erstellt von</label>
-            <div class="font-medium">{{ createdKeyCreatedBy }}</div>
-          </div>
-          <button
-            @click="closeCreateModal"
-            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg"
-          >
-            Fertig
-          </button>
-        </template>
-      </div>
     </div>
 
     <!-- Snackbar -->
