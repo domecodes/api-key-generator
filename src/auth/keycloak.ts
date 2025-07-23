@@ -161,11 +161,47 @@ export const initKeycloak = async (): Promise<boolean> => {
   }
 }
 
+// JWT Token Utilities
+function parseJwtToken(token: string): any {
+  try {
+    const base64Url = token.split('.')[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(''),
+    )
+    return JSON.parse(jsonPayload)
+  } catch (error) {
+    console.error('Fehler beim Parsen des JWT-Tokens:', error)
+    return null
+  }
+}
+
 // Token für API-Requests abrufen
 export const getToken = async (): Promise<string | null> => {
   try {
     if (useMockAuth || keycloak instanceof MockKeycloak) {
-      return 'mock-jwt-token'
+      // Mock-Token mit echten JWT-Struktur
+      const mockPayload = {
+        sub: keycloak.tokenParsed?.sub || 'mock-user-123',
+        email: keycloak.tokenParsed?.email || 'dev@example.com',
+        name: keycloak.tokenParsed?.name || 'Development User',
+        realm_access: keycloak.tokenParsed?.realm_access || { roles: ['user'] },
+        resource_access: keycloak.tokenParsed?.resource_access || {
+          'api-key-generator-frontend': { roles: ['user'] },
+        },
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 3600, // 1 Stunde gültig
+      }
+
+      // Erstelle Mock-JWT (Header.Payload.Signature)
+      const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+      const payload = btoa(JSON.stringify(mockPayload))
+      const signature = 'mock-signature'
+
+      return `${header}.${payload}.${signature}`
     }
 
     await keycloak.updateToken(30) // Token erneuern wenn es in 30 Sekunden abläuft
@@ -173,6 +209,40 @@ export const getToken = async (): Promise<string | null> => {
   } catch (error) {
     console.error('Fehler beim Token-Update:', error)
     return null
+  }
+}
+
+// JWT-Token validieren und parsen
+export const validateAndParseToken = (token: string): any => {
+  if (!token) return null
+
+  const parsed = parseJwtToken(token)
+  if (!parsed) return null
+
+  // Prüfe Token-Ablauf
+  const now = Math.floor(Date.now() / 1000)
+  if (parsed.exp && parsed.exp < now) {
+    console.warn('JWT-Token ist abgelaufen')
+    return null
+  }
+
+  return parsed
+}
+
+// Token-Informationen für Debugging
+export const getTokenInfo = (token: string): any => {
+  const parsed = validateAndParseToken(token)
+  if (!parsed) return null
+
+  return {
+    userId: parsed.sub,
+    email: parsed.email,
+    name: parsed.name,
+    roles: parsed.realm_access?.roles || [],
+    clientRoles: parsed.resource_access?.['api-key-generator-frontend']?.roles || [],
+    issuedAt: parsed.iat ? new Date(parsed.iat * 1000) : null,
+    expiresAt: parsed.exp ? new Date(parsed.exp * 1000) : null,
+    isExpired: parsed.exp ? parsed.exp < Math.floor(Date.now() / 1000) : false,
   }
 }
 
@@ -191,13 +261,21 @@ export const getUserRoles = (): UserRole[] => {
 
   const roles: UserRole[] = []
 
-  // Realm-Rollen prüfen
+  // Realm-Rollen prüfen (filtere System-Rollen)
   if (realmAccess?.roles) {
-    if (realmAccess.roles.includes('super_admin')) {
+    const realmRoles = realmAccess.roles.filter(
+      (role: string) =>
+        !role.startsWith('offline_access') &&
+        !role.startsWith('default-roles') &&
+        !role.startsWith('uma_authorization') &&
+        !role.startsWith('realm-management'),
+    )
+
+    if (realmRoles.includes('super_admin')) {
       roles.push(UserRole.SUPER_ADMIN)
-    } else if (realmAccess.roles.includes('admin')) {
+    } else if (realmRoles.includes('admin')) {
       roles.push(UserRole.ADMIN)
-    } else if (realmAccess.roles.includes('user')) {
+    } else if (realmRoles.includes('user')) {
       roles.push(UserRole.USER)
     }
   }
@@ -216,9 +294,16 @@ export const getUserRoles = (): UserRole[] => {
 
   // Fallback: Wenn keine Rollen gefunden, Standard-User-Rolle
   if (roles.length === 0) {
+    console.warn('Keine gültigen Rollen gefunden, verwende Standard-User-Rolle')
+    console.log('Verfügbare Realm-Rollen:', realmAccess?.roles || [])
+    console.log(
+      'Verfügbare Client-Rollen:',
+      resourceAccess?.['api-key-generator-frontend']?.roles || [],
+    )
     roles.push(UserRole.USER)
   }
 
+  console.log('Gefilterte Rollen:', roles)
   return roles
 }
 

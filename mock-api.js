@@ -13,24 +13,56 @@ function validateToken(req, res, next) {
   const authHeader = req.headers.authorization
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log(`[${new Date().toISOString()}] ❌ Kein Bearer Token gefunden`)
     return res.status(401).json({ error: 'Kein gültiger Bearer Token' })
   }
 
   const token = authHeader.substring(7)
 
-  // Mock JWT Token Parsing (in der echten Implementierung würde hier JWT.verify verwendet)
+  // JWT Token Parsing
   try {
-    // Simuliere Token-Parsing
-    const mockTokenData = {
-      sub: 'user-123',
-      email: 'user@example.com',
-      realm_access: {
-        roles: ['user'],
-      },
+    const tokenParts = token.split('.')
+    if (tokenParts.length !== 3) {
+      console.log(`[${new Date().toISOString()}] ❌ Ungültiges JWT-Format`)
+      return res.status(401).json({ error: 'Ungültiges JWT-Format' })
+    }
+
+    // Payload dekodieren
+    const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString())
+
+    // Token-Ablauf prüfen
+    const now = Math.floor(Date.now() / 1000)
+    if (payload.exp && payload.exp < now) {
+      console.log(`[${new Date().toISOString()}] ❌ Token ist abgelaufen`)
+      return res.status(401).json({ error: 'Token ist abgelaufen' })
+    }
+
+    // Rollen aus Token extrahieren
+    let userRoles = []
+    let clientRoles = []
+
+    if (payload.realm_access?.roles) {
+      userRoles = payload.realm_access.roles.filter(
+        (role) =>
+          !role.startsWith('offline_access') &&
+          !role.startsWith('default-roles') &&
+          !role.startsWith('uma_authorization') &&
+          !role.startsWith('realm-management'),
+      )
+    }
+
+    if (payload.resource_access?.['api-key-generator-frontend']?.roles) {
+      clientRoles = payload.resource_access['api-key-generator-frontend'].roles
+    }
+
+    // Mock-Token für verschiedene Rollen (für Testing)
+    let mockTokenData = {
+      sub: payload.sub || 'user-123',
+      email: payload.email || 'user@example.com',
+      name: payload.name || 'Test User',
+      realm_access: { roles: userRoles },
       resource_access: {
-        'api-key-generator-frontend': {
-          roles: ['user'],
-        },
+        'api-key-generator-frontend': { roles: clientRoles },
       },
     }
 
@@ -46,9 +78,20 @@ function validateToken(req, res, next) {
       }
     }
 
+    // Token-Info loggen
+    console.log(`[${new Date().toISOString()}] ✅ JWT Token validiert:`, {
+      userId: mockTokenData.sub,
+      email: mockTokenData.email,
+      realmRoles: mockTokenData.realm_access.roles,
+      clientRoles: mockTokenData.resource_access['api-key-generator-frontend'].roles,
+      expiresAt: payload.exp ? new Date(payload.exp * 1000) : 'Kein Ablauf',
+      originalRoles: payload.realm_access?.roles || [],
+    })
+
     req.user = mockTokenData
     next()
   } catch (error) {
+    console.error(`[${new Date().toISOString()}] ❌ JWT Token Parsing Fehler:`, error)
     return res.status(401).json({ error: 'Ungültiger Token' })
   }
 }

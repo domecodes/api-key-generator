@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { getHighestRole, getUserInfo, getUserRoles, hasPermission, keycloak } from '@/auth/keycloak'
+import {
+  getHighestRole,
+  getToken,
+  getTokenInfo,
+  getUserInfo,
+  getUserRoles,
+  hasPermission,
+  keycloak,
+} from '@/auth/keycloak'
 import ApiKeyCreateModal from '@/components/apikey/ApiKeyCreateModal.vue'
 import ApiKeyEditModal from '@/components/apikey/ApiKeyEditModal.vue'
 import ApiKeyTable from '@/components/apikey/ApiKeyTable.vue'
@@ -99,6 +107,27 @@ const getRoleColor = (role: string) => {
       return 'bg-purple-100 text-purple-800'
     default:
       return 'bg-gray-100 text-gray-800'
+  }
+}
+
+// Debug-Funktionen für Entwicklung
+const showDebugInfo = ref(false)
+const tokenInfo = ref<any>(null)
+const isDevelopment = computed(() => import.meta.env.DEV)
+
+const loadTokenInfo = async () => {
+  if (isDevelopment.value) {
+    const token = await getToken()
+    if (token) {
+      tokenInfo.value = getTokenInfo(token)
+    }
+  }
+}
+
+const toggleDebugInfo = () => {
+  showDebugInfo.value = !showDebugInfo.value
+  if (showDebugInfo.value) {
+    loadTokenInfo()
   }
 }
 
@@ -416,6 +445,16 @@ onMounted(() => {
       <!-- Topbar mit Profil rechts oben -->
       <header class="flex items-center justify-end bg-white border-b px-8 py-4">
         <div class="flex items-center gap-3">
+          <!-- Debug-Button (nur in Entwicklung) -->
+          <button
+            v-if="isDevelopment"
+            @click="toggleDebugInfo"
+            class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors"
+            title="Debug Info"
+          >
+            🔧 Debug
+          </button>
+
           <!-- Rollen-Anzeige -->
           <div class="flex items-center gap-2">
             <span class="text-gray-700 font-medium text-sm">{{ userProfile.name }}</span>
@@ -447,6 +486,27 @@ onMounted(() => {
           </button>
         </div>
       </header>
+
+      <!-- Debug Panel (nur in Entwicklung) -->
+      <div
+        v-if="showDebugInfo && isDevelopment"
+        class="bg-yellow-50 border-b border-yellow-200 p-4"
+      >
+        <div class="max-w-6xl mx-auto">
+          <h3 class="text-sm font-semibold text-yellow-800 mb-2">🔧 Debug Information</h3>
+          <div v-if="tokenInfo" class="text-xs text-yellow-700 space-y-1">
+            <div><strong>User ID:</strong> {{ tokenInfo.userId }}</div>
+            <div><strong>Email:</strong> {{ tokenInfo.email }}</div>
+            <div><strong>Name:</strong> {{ tokenInfo.name }}</div>
+            <div><strong>Roles:</strong> {{ tokenInfo.roles.join(', ') }}</div>
+            <div><strong>Client Roles:</strong> {{ tokenInfo.clientRoles.join(', ') }}</div>
+            <div><strong>Issued At:</strong> {{ tokenInfo.issuedAt?.toLocaleString() }}</div>
+            <div><strong>Expires At:</strong> {{ tokenInfo.expiresAt?.toLocaleString() }}</div>
+            <div><strong>Is Expired:</strong> {{ tokenInfo.isExpired ? 'Yes' : 'No' }}</div>
+          </div>
+          <div v-else class="text-xs text-yellow-600">Token-Informationen werden geladen...</div>
+        </div>
+      </div>
       <main class="flex-1 bg-gray-50 p-10">
         <!-- API Keys Section -->
         <div v-if="activeSidebar === 'api'">

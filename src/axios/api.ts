@@ -14,9 +14,17 @@ api.interceptors.request.use(
       const token = await getToken()
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
+        console.log('🔐 JWT Token für Request hinzugefügt:', {
+          url: config.url,
+          method: config.method,
+          tokenLength: token.length,
+          tokenPreview: token.substring(0, 50) + '...',
+        })
+      } else {
+        console.warn('⚠️ Kein JWT Token verfügbar für Request:', config.url)
       }
     } catch (error) {
-      console.error('Fehler beim Token-Abruf:', error)
+      console.error('❌ Fehler beim Token-Abruf:', error)
     }
     return config
   },
