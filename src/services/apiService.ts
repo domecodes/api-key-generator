@@ -1,92 +1,97 @@
+import {
+  createApiKeyV1,
+  deactivateKeyV1,
+  getAllApiKeysV1,
+  getApiKeyV1,
+  rotateKeyV1,
+  type DekaRagApiKeyRequest,
+} from '@/api/apikeys/apikeys'
+import type {
+  DekaRagApiKey,
+  DekaRagApiKeyWithSecret,
+  SummaryUsageResponse,
+  UsageResponse,
+} from '@/api/types/types'
+import {
+  adminUsageAISummaryGetV1,
+  usageAIGetV1,
+  usageAISummaryGetV1,
+  type AdminUsageAISummaryGetV1Params,
+  type UsageAIGetV1Params,
+  type UsageAISummaryGetV1Params,
+} from '@/api/usage/usage'
 import { hasPermission } from '@/auth/keycloak'
-import api from '@/axios/api'
 
 // API-Service für API-Keys
 export const apiKeyService = {
   // Alle API-Keys abrufen (rollenbasiert)
-  async getApiKeys() {
+  async getApiKeys(): Promise<DekaRagApiKey[]> {
     // Prüfe Berechtigung
     if (!hasPermission('canViewOwnKeys')) {
       throw new Error('Keine Berechtigung zum Anzeigen von API-Keys')
     }
 
-    const response = await api.get('/apikeys')
+    const response = await getAllApiKeysV1()
     return response.data
   },
 
   // Neuen API-Key erstellen (rollenbasiert)
-  async createApiKey(name: string, permissions: string[]) {
+  async createApiKey(name: string, permissions: string[]): Promise<DekaRagApiKeyWithSecret> {
     // Prüfe Berechtigung
     if (!hasPermission('canCreateKeys')) {
       throw new Error('Keine Berechtigung zum Erstellen von API-Keys')
     }
 
-    const response = await api.post('/apikeys', {
-      name,
-      permissions,
-    })
+    const request: DekaRagApiKeyRequest = { name, permissions }
+    const response = await createApiKeyV1(request)
     return response.data
   },
 
   // API-Key deaktivieren (rollenbasiert)
-  async deactivateApiKey(keyId: string) {
+  async deactivateApiKey(keyId: string): Promise<void> {
     // Prüfe Berechtigung
     if (!hasPermission('canDeactivateOwnKeys')) {
       throw new Error('Keine Berechtigung zum Deaktivieren von API-Keys')
     }
 
-    const response = await api.put(`/apikeys/${keyId}/deactivate`)
-    return response.data
+    await deactivateKeyV1(keyId)
   },
 
   // API-Key rotieren (rollenbasiert)
-  async rotateApiKey(keyId: string, name: string, permissions: string[]) {
+  async rotateApiKey(
+    keyId: string,
+    name: string,
+    permissions: string[],
+  ): Promise<DekaRagApiKeyWithSecret> {
     // Prüfe Berechtigung
     if (!hasPermission('canEditOwnKeys')) {
       throw new Error('Keine Berechtigung zum Bearbeiten von API-Keys')
     }
 
-    const response = await api.post(`/apikeys/${keyId}/rotate`, {
-      name,
-      permissions,
-    })
+    const request: DekaRagApiKeyRequest = { name, permissions }
+    const response = await rotateKeyV1(keyId, request)
     return response.data
   },
 
-  // Admin: Alle API-Keys aller Benutzer abrufen
-  async getAllApiKeys() {
+  // Einzelnen API-Key abrufen
+  async getApiKey(keyId: string): Promise<DekaRagApiKey> {
+    // Prüfe Berechtigung
+    if (!hasPermission('canViewOwnKeys')) {
+      throw new Error('Keine Berechtigung zum Anzeigen von API-Keys')
+    }
+
+    const response = await getApiKeyV1(keyId)
+    return response.data
+  },
+
+  // Admin: Alle API-Keys aller Benutzer abrufen (gleiche Funktion wie getApiKeys, da alle Benutzer alle Keys sehen)
+  async getAllApiKeys(): Promise<DekaRagApiKey[]> {
     // Prüfe Admin-Berechtigung
     if (!hasPermission('canViewAdminUsage')) {
       throw new Error('Keine Admin-Berechtigung zum Anzeigen aller API-Keys')
     }
 
-    const response = await api.get('/admin/apikeys')
-    return response.data
-  },
-
-  // Admin: API-Key für bestimmten Benutzer erstellen
-  async createApiKeyForUser(userId: string, name: string, permissions: string[]) {
-    // Prüfe Admin-Berechtigung
-    if (!hasPermission('canManageUsers')) {
-      throw new Error('Keine Admin-Berechtigung zum Erstellen von API-Keys für andere Benutzer')
-    }
-
-    const response = await api.post('/admin/apikeys', {
-      userId,
-      name,
-      permissions,
-    })
-    return response.data
-  },
-
-  // Admin: API-Key für anderen Benutzer deaktivieren
-  async deactivateApiKeyForUser(keyId: string) {
-    // Prüfe Admin-Berechtigung
-    if (!hasPermission('canManageUsers')) {
-      throw new Error('Keine Admin-Berechtigung zum Deaktivieren von API-Keys anderer Benutzer')
-    }
-
-    const response = await api.put(`/admin/apikeys/${keyId}/deactivate`)
+    const response = await getAllApiKeysV1()
     return response.data
   },
 }
@@ -94,103 +99,95 @@ export const apiKeyService = {
 // Usage-Service für Verbrauchsdaten
 export const usageService = {
   // Eigene Usage-Daten abrufen
-  async getOwnUsage(fromDate?: string, toDate?: string) {
+  async getOwnUsage(fromDate?: string, toDate?: string, model?: string): Promise<UsageResponse> {
     // Prüfe Berechtigung
     if (!hasPermission('canViewOwnUsage')) {
       throw new Error('Keine Berechtigung zum Anzeigen von Usage-Daten')
     }
 
-    const params = new URLSearchParams()
-    if (fromDate) params.append('from_date', fromDate)
-    if (toDate) params.append('to_date', toDate)
+    const params: UsageAIGetV1Params = {}
+    if (fromDate) params.from_date = fromDate
+    if (toDate) params.to_date = toDate
+    if (model) params.model = model
 
-    const response = await api.get(`/usage/ai?${params.toString()}`)
+    const response = await usageAIGetV1(params)
     return response.data
   },
 
   // Usage-Summary abrufen
-  async getUsageSummary(fromDate?: string, toDate?: string, by?: string) {
+  async getUsageSummary(
+    fromDate?: string,
+    toDate?: string,
+    by?: string,
+  ): Promise<SummaryUsageResponse> {
     // Prüfe Berechtigung
     if (!hasPermission('canViewOwnUsage')) {
       throw new Error('Keine Berechtigung zum Anzeigen von Usage-Daten')
     }
 
-    const params = new URLSearchParams()
-    if (fromDate) params.append('from_date', fromDate)
-    if (toDate) params.append('to_date', toDate)
-    if (by) params.append('by', by)
+    const params: UsageAISummaryGetV1Params = {}
+    if (fromDate) params.from_date = fromDate
+    if (toDate) params.to_date = toDate
+    if (by) params.by = by
 
-    const response = await api.get(`/usage/ai/summarize?${params.toString()}`)
-    return response.data
-  },
-
-  // Admin: Alle Usage-Daten abrufen
-  async getAllUsage(fromDate?: string, toDate?: string) {
-    // Prüfe Admin-Berechtigung
-    if (!hasPermission('canViewAdminUsage')) {
-      throw new Error('Keine Admin-Berechtigung zum Anzeigen aller Usage-Daten')
-    }
-
-    const params = new URLSearchParams()
-    if (fromDate) params.append('from_date', fromDate)
-    if (toDate) params.append('to_date', toDate)
-
-    const response = await api.get(`/admin/usage/ai?${params.toString()}`)
+    const response = await usageAISummaryGetV1(params)
     return response.data
   },
 
   // Admin: Usage-Summary für alle Benutzer
-  async getAdminUsageSummary(fromDate?: string, toDate?: string, by?: string) {
+  async getAdminUsageSummary(
+    fromDate?: string,
+    toDate?: string,
+    by?: string,
+  ): Promise<SummaryUsageResponse> {
     // Prüfe Admin-Berechtigung
     if (!hasPermission('canViewAdminUsage')) {
       throw new Error('Keine Admin-Berechtigung zum Anzeigen der Admin-Usage-Summary')
     }
 
-    const params = new URLSearchParams()
-    if (fromDate) params.append('from_date', fromDate)
-    if (toDate) params.append('to_date', toDate)
-    if (by) params.append('by', by)
+    const params: AdminUsageAISummaryGetV1Params = {}
+    if (fromDate) params.from_date = fromDate
+    if (toDate) params.to_date = toDate
+    if (by) params.by = by
 
-    const response = await api.get(`/admin/usage/ai/summarize?${params.toString()}`)
+    const response = await adminUsageAISummaryGetV1(params)
     return response.data
   },
 }
 
-// User-Management-Service (nur für Super-Admins)
+// User-Management-Service (nur für API-Admins)
 export const userService = {
   // Alle Benutzer abrufen
   async getAllUsers() {
-    // Prüfe Super-Admin-Berechtigung
+    // Prüfe Admin-Berechtigung
     if (!hasPermission('canManageUsers')) {
-      throw new Error('Keine Super-Admin-Berechtigung zum Anzeigen aller Benutzer')
+      throw new Error('Keine Admin-Berechtigung zum Anzeigen aller Benutzer')
     }
 
-    const response = await api.get('/admin/users')
-    return response.data
+    // TODO: Implementiere User-API-Endpunkte wenn verfügbar
+    throw new Error('User-Management-API noch nicht implementiert')
   },
 
   // Benutzer-Rolle ändern
   async updateUserRole(userId: string, role: string) {
-    // Prüfe Super-Admin-Berechtigung
+    // Prüfe Admin-Berechtigung
     if (!hasPermission('canManageUsers')) {
-      throw new Error('Keine Super-Admin-Berechtigung zum Ändern von Benutzer-Rollen')
+      throw new Error('Keine Admin-Berechtigung zum Ändern von Benutzer-Rollen')
     }
 
-    const response = await api.put(`/admin/users/${userId}/role`, {
-      role,
-    })
-    return response.data
+    // TODO: Implementiere User-API-Endpunkte wenn verfügbar
+    throw new Error('User-Management-API noch nicht implementiert')
   },
 
   // Benutzer deaktivieren
   async deactivateUser(userId: string) {
-    // Prüfe Super-Admin-Berechtigung
+    // Prüfe Admin-Berechtigung
     if (!hasPermission('canManageUsers')) {
-      throw new Error('Keine Super-Admin-Berechtigung zum Deaktivieren von Benutzern')
+      throw new Error('Keine Admin-Berechtigung zum Deaktivieren von Benutzern')
     }
 
-    const response = await api.put(`/admin/users/${userId}/deactivate`)
-    return response.data
+    // TODO: Implementiere User-API-Endpunkte wenn verfügbar
+    throw new Error('User-Management-API noch nicht implementiert')
   },
 }
 

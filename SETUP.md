@@ -30,19 +30,19 @@ npm run dev:all
 
 ### Mock-Authentifizierung für Entwicklung
 
-Das System verwendet automatisch Mock-Authentifizierung wenn Keycloak nicht verfügbar ist. Für verschiedene Rollen:
+Das System verwendet automatisch Mock-Authentifizierung wenn Keycloak nicht verfügbar ist. Rollen werden aus den `groups` im JWT-Token gelesen:
 
 **Im Browser Console:**
 
 ```javascript
-// User-Rolle (Standard)
-localStorage.setItem('mock-role', 'user')
+// API-Default-Rolle (Standard)
+localStorage.setItem('mock-role', 'api-default')
 
-// Admin-Rolle
-localStorage.setItem('mock-role', 'admin')
+// API-Stream-Rolle
+localStorage.setItem('mock-role', 'api-stream')
 
-// Super-Admin-Rolle
-localStorage.setItem('mock-role', 'super_admin')
+// API-Admin-Rolle
+localStorage.setItem('mock-role', 'api-admin')
 ```
 
 **Oder direkt in der App:**
@@ -51,7 +51,7 @@ localStorage.setItem('mock-role', 'super_admin')
 import { setMockRole } from '@/auth/keycloak'
 
 // Rolle ändern
-setMockRole('admin')
+setMockRole('api-admin')
 ```
 
 ### Ports
@@ -88,39 +88,41 @@ setMockRole('admin')
 
 ## 🔐 Rollen und Berechtigungen
 
-### User
+### API-Default
 
 - Eigene API-Keys verwalten
 - Eigene Usage einsehen
 - API-Keys erstellen, bearbeiten, deaktivieren
+- Zugriff auf alle APIs außer `/v1/admin/usage/ai/summarize`
 
-### Admin
+### API-Stream
+
+- Eigene API-Keys verwalten
+- Eigene Usage einsehen
+- API-Keys erstellen, bearbeiten, deaktivieren
+- Zugriff auf alle APIs außer `/v1/admin/usage/ai/summarize`
+
+### API-Admin
 
 - Alle API-Keys einsehen
 - API-Keys für andere Benutzer erstellen
-- Admin Usage einsehen
-- Alle User-Funktionen
-
-### Super Admin
-
-- Benutzer verwalten
-- Rollen ändern
-- Benutzer deaktivieren
-- Alle Admin-Funktionen
+- Admin Usage einsehen (Nutzung aller Accounts)
+- Zugriff auf alle APIs inklusive `/v1/admin/usage/ai/summarize`
+- Alle API-Default und API-Stream Funktionen
 
 ## 🧪 Testing
 
 ### JWT Token Testing
 
 ```bash
-# User-Rolle (Standard)
+# API-Default-Rolle (Standard)
 curl -H "Authorization: Bearer token" http://localhost:3001/v1/apikeys
 
-# Admin-Rolle
-curl -H "Authorization: Bearer token" "http://localhost:3001/v1/apikeys?token=admin"
+# API-Stream-Rolle
+curl -H "Authorization: Bearer token" "http://localhost:3001/v1/apikeys?token=api-stream"
 
-# Super-Admin-Rolle
-curl -H "Authorization: Bearer token" "http://localhost:3001/v1/apikeys?token=super_admin"
+# API-Admin-Rolle
+curl -H "Authorization: Bearer token" "http://localhost:3001/v1/apikeys?token=api-admin"
 ```
 
 ## 🚨 Troubleshooting

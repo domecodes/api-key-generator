@@ -23,15 +23,10 @@ class MockKeycloak {
       sub: 'mock-user-123',
       email: 'dev@example.com',
       name: 'Development User',
+      family_name: 'User',
+      given_name: 'Development',
       preferred_username: 'devuser',
-      realm_access: {
-        roles: ['user'],
-      },
-      resource_access: {
-        'api-key-generator-frontend': {
-          roles: ['user'],
-        },
-      },
+      groups: ['api-default'],
     }
   }
 
@@ -40,23 +35,20 @@ class MockKeycloak {
 
     // Simuliere Login-Formular für verschiedene Rollen
     if (options.onLoad === 'login-required') {
-      const role = localStorage.getItem('mock-role') || 'user'
+      const role = localStorage.getItem('mock-role') || 'api-default'
       this.setMockRole(role)
     }
 
     this._authenticated = true
-    console.log('Mock Keycloak: Authentifiziert als', this._tokenParsed.realm_access.roles[0])
+    console.log('Mock Keycloak: Authentifiziert als', this._tokenParsed.groups[0])
     return true
   }
 
   setMockRole(role: string) {
-    const roles = [role]
+    const groups = [role]
     this._tokenParsed = {
       ...this._tokenParsed,
-      realm_access: { roles },
-      resource_access: {
-        'api-key-generator-frontend': { roles },
-      },
+      groups,
     }
     localStorage.setItem('mock-role', role)
   }
@@ -86,14 +78,14 @@ class MockKeycloak {
 
 // Rollen-Definitionen
 export enum UserRole {
-  USER = 'user',
-  ADMIN = 'admin',
-  SUPER_ADMIN = 'super_admin',
+  API_DEFAULT = 'api-default',
+  API_STREAM = 'api-stream',
+  API_ADMIN = 'api-admin',
 }
 
 // API-Berechtigungen pro Rolle
 export const ROLE_PERMISSIONS = {
-  [UserRole.USER]: {
+  [UserRole.API_DEFAULT]: {
     canViewOwnKeys: true,
     canCreateKeys: true,
     canEditOwnKeys: true,
@@ -102,7 +94,16 @@ export const ROLE_PERMISSIONS = {
     canViewAdminUsage: false,
     canManageUsers: false,
   },
-  [UserRole.ADMIN]: {
+  [UserRole.API_STREAM]: {
+    canViewOwnKeys: true,
+    canCreateKeys: true,
+    canEditOwnKeys: true,
+    canDeactivateOwnKeys: true,
+    canViewOwnUsage: true,
+    canViewAdminUsage: false,
+    canManageUsers: false,
+  },
+  [UserRole.API_ADMIN]: {
     canViewOwnKeys: true,
     canCreateKeys: true,
     canEditOwnKeys: true,
@@ -110,15 +111,6 @@ export const ROLE_PERMISSIONS = {
     canViewOwnUsage: true,
     canViewAdminUsage: true,
     canManageUsers: false,
-  },
-  [UserRole.SUPER_ADMIN]: {
-    canViewOwnKeys: true,
-    canCreateKeys: true,
-    canEditOwnKeys: true,
-    canDeactivateOwnKeys: true,
-    canViewOwnUsage: true,
-    canViewAdminUsage: true,
-    canManageUsers: true,
   },
 }
 
@@ -130,9 +122,11 @@ export const initKeycloak = async (): Promise<boolean> => {
   try {
     if (useMockAuth) {
       console.log('🔧 Mock Keycloak wird verwendet (Entwicklungsmodus)')
-      console.log('💡 Tipp: Setze localStorage.setItem("mock-role", "admin") für Admin-Rolle')
       console.log(
-        '💡 Tipp: Setze localStorage.setItem("mock-role", "super_admin") für Super-Admin-Rolle',
+        '💡 Tipp: Setze localStorage.setItem("mock-role", "api-stream") für API-Stream-Rolle',
+      )
+      console.log(
+        '💡 Tipp: Setze localStorage.setItem("mock-role", "api-admin") für API-Admin-Rolle',
       )
     }
 
@@ -188,10 +182,10 @@ export const getToken = async (): Promise<string | null> => {
         sub: keycloak.tokenParsed?.sub || 'mock-user-123',
         email: keycloak.tokenParsed?.email || 'dev@example.com',
         name: keycloak.tokenParsed?.name || 'Development User',
-        realm_access: keycloak.tokenParsed?.realm_access || { roles: ['user'] },
-        resource_access: keycloak.tokenParsed?.resource_access || {
-          'api-key-generator-frontend': { roles: ['user'] },
-        },
+        family_name: keycloak.tokenParsed?.family_name || 'User',
+        given_name: keycloak.tokenParsed?.given_name || 'Development',
+        preferred_username: keycloak.tokenParsed?.preferred_username || 'devuser',
+        groups: keycloak.tokenParsed?.groups || ['api-default'],
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000) + 3600, // 1 Stunde gültig
       }
@@ -238,8 +232,10 @@ export const getTokenInfo = (token: string): any => {
     userId: parsed.sub,
     email: parsed.email,
     name: parsed.name,
-    roles: parsed.realm_access?.roles || [],
-    clientRoles: parsed.resource_access?.['api-key-generator-frontend']?.roles || [],
+    familyName: parsed.family_name,
+    givenName: parsed.given_name,
+    preferredUsername: parsed.preferred_username,
+    groups: parsed.groups || [],
     issuedAt: parsed.iat ? new Date(parsed.iat * 1000) : null,
     expiresAt: parsed.exp ? new Date(parsed.exp * 1000) : null,
     isExpired: parsed.exp ? parsed.exp < Math.floor(Date.now() / 1000) : false,
@@ -251,59 +247,30 @@ export const getUserInfo = () => {
   return keycloak.tokenParsed
 }
 
-// Benutzer-Rollen abrufen
+// Benutzer-Rollen abrufen (aus groups)
 export const getUserRoles = (): UserRole[] => {
   if (!keycloak.tokenParsed) return []
 
-  // Rollen aus dem JWT-Token extrahieren
-  const realmAccess = keycloak.tokenParsed.realm_access
-  const resourceAccess = keycloak.tokenParsed.resource_access
-
+  const groups = keycloak.tokenParsed.groups || []
   const roles: UserRole[] = []
 
-  // Realm-Rollen prüfen (filtere System-Rollen)
-  if (realmAccess?.roles) {
-    const realmRoles = realmAccess.roles.filter(
-      (role: string) =>
-        !role.startsWith('offline_access') &&
-        !role.startsWith('default-roles') &&
-        !role.startsWith('uma_authorization') &&
-        !role.startsWith('realm-management'),
-    )
-
-    if (realmRoles.includes('super_admin')) {
-      roles.push(UserRole.SUPER_ADMIN)
-    } else if (realmRoles.includes('admin')) {
-      roles.push(UserRole.ADMIN)
-    } else if (realmRoles.includes('user')) {
-      roles.push(UserRole.USER)
-    }
+  // Rollen aus groups extrahieren (mit und ohne Slash)
+  if (groups.includes('api-admin') || groups.includes('/api-admin')) {
+    roles.push(UserRole.API_ADMIN)
+  } else if (groups.includes('api-stream') || groups.includes('/api-stream')) {
+    roles.push(UserRole.API_STREAM)
+  } else if (groups.includes('api-default') || groups.includes('/api-default')) {
+    roles.push(UserRole.API_DEFAULT)
   }
 
-  // Client-spezifische Rollen prüfen
-  if (resourceAccess && resourceAccess['api-key-generator-frontend']?.roles) {
-    const clientRoles = resourceAccess['api-key-generator-frontend'].roles
-    if (clientRoles.includes('super_admin') && !roles.includes(UserRole.SUPER_ADMIN)) {
-      roles.push(UserRole.SUPER_ADMIN)
-    } else if (clientRoles.includes('admin') && !roles.includes(UserRole.ADMIN)) {
-      roles.push(UserRole.ADMIN)
-    } else if (clientRoles.includes('user') && !roles.includes(UserRole.USER)) {
-      roles.push(UserRole.USER)
-    }
-  }
-
-  // Fallback: Wenn keine Rollen gefunden, Standard-User-Rolle
+  // Fallback: Wenn keine Rollen gefunden, Standard-API-Default-Rolle
   if (roles.length === 0) {
-    console.warn('Keine gültigen Rollen gefunden, verwende Standard-User-Rolle')
-    console.log('Verfügbare Realm-Rollen:', realmAccess?.roles || [])
-    console.log(
-      'Verfügbare Client-Rollen:',
-      resourceAccess?.['api-key-generator-frontend']?.roles || [],
-    )
-    roles.push(UserRole.USER)
+    console.warn('Keine gültigen Rollen in groups gefunden, verwende Standard-API-Default-Rolle')
+    console.log('Verfügbare Groups:', groups)
+    roles.push(UserRole.API_DEFAULT)
   }
 
-  console.log('Gefilterte Rollen:', roles)
+  console.log('Gefilterte Rollen aus groups:', roles)
   return roles
 }
 
@@ -311,12 +278,12 @@ export const getUserRoles = (): UserRole[] => {
 export const getHighestRole = (): UserRole => {
   const roles = getUserRoles()
 
-  if (roles.includes(UserRole.SUPER_ADMIN)) {
-    return UserRole.SUPER_ADMIN
-  } else if (roles.includes(UserRole.ADMIN)) {
-    return UserRole.ADMIN
+  if (roles.includes(UserRole.API_ADMIN)) {
+    return UserRole.API_ADMIN
+  } else if (roles.includes(UserRole.API_STREAM)) {
+    return UserRole.API_STREAM
   } else {
-    return UserRole.USER
+    return UserRole.API_DEFAULT
   }
 }
 
@@ -348,6 +315,45 @@ export const getUserId = (): string | null => {
 // Benutzer-E-Mail abrufen
 export const getUserEmail = (): string | null => {
   return keycloak.tokenParsed?.email || null
+}
+
+// Debug-Funktion für Token-Analyse
+export const debugToken = () => {
+  if (!keycloak.tokenParsed) {
+    console.log('❌ Kein Token verfügbar')
+    return
+  }
+
+  console.log('🔍 Token Debug Information:')
+  console.log('Raw tokenParsed:', keycloak.tokenParsed)
+  console.log('Available keys:', Object.keys(keycloak.tokenParsed))
+
+  // Spezifische Felder prüfen
+  console.log('sub:', keycloak.tokenParsed.sub)
+  console.log('email:', keycloak.tokenParsed.email)
+  console.log('name:', keycloak.tokenParsed.name)
+  console.log('family_name:', keycloak.tokenParsed.family_name)
+  console.log('given_name:', keycloak.tokenParsed.given_name)
+  console.log('preferred_username:', keycloak.tokenParsed.preferred_username)
+  console.log('groups:', keycloak.tokenParsed.groups)
+  console.log('realm_access:', keycloak.tokenParsed.realm_access)
+  console.log('resource_access:', keycloak.tokenParsed.resource_access)
+
+  // Rollen-Analyse
+  const roles = getUserRoles()
+  console.log('Erkannte Rollen:', roles)
+  console.log('Höchste Rolle:', getHighestRole())
+
+  // Gruppen-Detection-Debug
+  const groups = keycloak.tokenParsed.groups || []
+  console.log('🔍 Gruppen-Detection:')
+  console.log('  Raw groups:', groups)
+  console.log('  Contains /api-admin:', groups.includes('/api-admin'))
+  console.log('  Contains api-admin:', groups.includes('api-admin'))
+  console.log('  Contains /api-stream:', groups.includes('/api-stream'))
+  console.log('  Contains api-stream:', groups.includes('api-stream'))
+  console.log('  Contains /api-default:', groups.includes('/api-default'))
+  console.log('  Contains api-default:', groups.includes('api-default'))
 }
 
 // Mock-Rolle für Entwicklung setzen

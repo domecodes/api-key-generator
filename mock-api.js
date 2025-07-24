@@ -37,22 +37,15 @@ function validateToken(req, res, next) {
       return res.status(401).json({ error: 'Token ist abgelaufen' })
     }
 
-    // Rollen aus Token extrahieren
+    // Rollen aus groups claim extrahieren (neue Struktur)
     let userRoles = []
-    let clientRoles = []
 
-    if (payload.realm_access?.roles) {
-      userRoles = payload.realm_access.roles.filter(
-        (role) =>
-          !role.startsWith('offline_access') &&
-          !role.startsWith('default-roles') &&
-          !role.startsWith('uma_authorization') &&
-          !role.startsWith('realm-management'),
-      )
-    }
-
-    if (payload.resource_access?.['api-key-generator-frontend']?.roles) {
-      clientRoles = payload.resource_access['api-key-generator-frontend'].roles
+    if (payload.groups && Array.isArray(payload.groups)) {
+      userRoles = payload.groups
+        .map((group) => group.replace(/^\//, '')) // Entferne führenden Slash
+        .filter(
+          (group) => group === 'API-Admin' || group === 'API-Default' || group === 'API-Stream',
+        )
     }
 
     // Mock-Token für verschiedene Rollen (für Testing)
@@ -60,21 +53,21 @@ function validateToken(req, res, next) {
       sub: payload.sub || 'user-123',
       email: payload.email || 'user@example.com',
       name: payload.name || 'Test User',
-      realm_access: { roles: userRoles },
-      resource_access: {
-        'api-key-generator-frontend': { roles: clientRoles },
-      },
+      family_name: payload.family_name || 'Schumacher',
+      given_name: payload.given_name || 'Domenic',
+      preferred_username: payload.preferred_username || 'domenic.schumacher',
+      groups: userRoles,
     }
 
     // Token aus Query-Parameter oder Header für Testing
     if (req.query.token) {
       const tokenType = req.query.token
       if (tokenType === 'admin') {
-        mockTokenData.realm_access.roles = ['admin']
-        mockTokenData.resource_access['api-key-generator-frontend'].roles = ['admin']
-      } else if (tokenType === 'super_admin') {
-        mockTokenData.realm_access.roles = ['super_admin']
-        mockTokenData.resource_access['api-key-generator-frontend'].roles = ['super_admin']
+        mockTokenData.groups = ['API-Admin']
+      } else if (tokenType === 'default') {
+        mockTokenData.groups = ['API-Default']
+      } else if (tokenType === 'stream') {
+        mockTokenData.groups = ['API-Stream']
       }
     }
 
@@ -82,10 +75,13 @@ function validateToken(req, res, next) {
     console.log(`[${new Date().toISOString()}] ✅ JWT Token validiert:`, {
       userId: mockTokenData.sub,
       email: mockTokenData.email,
-      realmRoles: mockTokenData.realm_access.roles,
-      clientRoles: mockTokenData.resource_access['api-key-generator-frontend'].roles,
+      name: mockTokenData.name,
+      family_name: mockTokenData.family_name,
+      given_name: mockTokenData.given_name,
+      preferred_username: mockTokenData.preferred_username,
+      groups: mockTokenData.groups,
       expiresAt: payload.exp ? new Date(payload.exp * 1000) : 'Kein Ablauf',
-      originalRoles: payload.realm_access?.roles || [],
+      originalGroups: payload.groups || [],
     })
 
     req.user = mockTokenData
@@ -99,9 +95,8 @@ function validateToken(req, res, next) {
 // Rollen-basierte Berechtigungsprüfung
 function requireRole(requiredRoles) {
   return (req, res, next) => {
-    const userRoles = req.user.realm_access?.roles || []
-    const clientRoles = req.user.resource_access?.['api-key-generator-frontend']?.roles || []
-    const allUserRoles = [...userRoles, ...clientRoles]
+    const userGroups = req.user.groups || []
+    const allUserRoles = [...userGroups]
 
     const hasRequiredRole = requiredRoles.some((role) => allUserRoles.includes(role))
 
@@ -231,8 +226,8 @@ app.get('/v1/apikeys', validateToken, (req, res) => {
   console.log(`[${timestamp}] Listing API keys for user: ${userId}`)
 
   // Filtere Keys nach Benutzer (außer für Admins)
-  const userRoles = req.user.realm_access?.roles || []
-  const isAdmin = userRoles.includes('admin') || userRoles.includes('super_admin')
+  const userRoles = req.user.groups || []
+  const isAdmin = userRoles.includes('API-Admin')
 
   let keys
   if (isAdmin) {
@@ -273,8 +268,8 @@ app.get('/v1/apikeys/:id', validateToken, (req, res) => {
   }
 
   // Prüfe Berechtigung (nur eigene Keys oder Admin)
-  const userRoles = req.user.realm_access?.roles || []
-  const isAdmin = userRoles.includes('admin') || userRoles.includes('super_admin')
+  const userRoles = req.user.groups || []
+  const isAdmin = userRoles.includes('API-Admin')
 
   if (!isAdmin && apiKey.user_id !== userId) {
     console.log(
@@ -315,8 +310,8 @@ app.post('/v1/apikeys/:id/rotate', validateToken, (req, res) => {
   }
 
   // Prüfe Berechtigung (nur eigene Keys oder Admin)
-  const userRoles = req.user.realm_access?.roles || []
-  const isAdmin = userRoles.includes('admin') || userRoles.includes('super_admin')
+  const userRoles = req.user.groups || []
+  const isAdmin = userRoles.includes('API-Admin')
 
   if (!isAdmin && existingKey.user_id !== userId) {
     console.log(
@@ -370,8 +365,8 @@ app.put('/v1/apikeys/:id/deactivate', validateToken, (req, res) => {
   }
 
   // Prüfe Berechtigung (nur eigene Keys oder Admin)
-  const userRoles = req.user.realm_access?.roles || []
-  const isAdmin = userRoles.includes('admin') || userRoles.includes('super_admin')
+  const userRoles = req.user.groups || []
+  const isAdmin = userRoles.includes('API-Admin')
 
   if (!isAdmin && apiKey.user_id !== userId) {
     console.log(
@@ -390,7 +385,7 @@ app.put('/v1/apikeys/:id/deactivate', validateToken, (req, res) => {
 // Admin Endpunkte
 
 // GET /v1/admin/apikeys - Get all API keys (Admin only)
-app.get('/v1/admin/apikeys', validateToken, requireRole(['admin', 'super_admin']), (req, res) => {
+app.get('/v1/admin/apikeys', validateToken, requireRole(['API-Admin']), (req, res) => {
   const timestamp = new Date().toISOString()
 
   console.log(`[${timestamp}] Admin: Getting all API keys`)
@@ -410,7 +405,7 @@ app.get('/v1/admin/apikeys', validateToken, requireRole(['admin', 'super_admin']
 })
 
 // POST /v1/admin/apikeys - Create API key for specific user (Admin only)
-app.post('/v1/admin/apikeys', validateToken, requireRole(['admin', 'super_admin']), (req, res) => {
+app.post('/v1/admin/apikeys', validateToken, requireRole(['API-Admin']), (req, res) => {
   const { userId, name, permissions } = req.body
   const timestamp = new Date().toISOString()
 
@@ -448,7 +443,7 @@ app.post('/v1/admin/apikeys', validateToken, requireRole(['admin', 'super_admin'
 app.put(
   '/v1/admin/apikeys/:id/deactivate',
   validateToken,
-  requireRole(['admin', 'super_admin']),
+  requireRole(['API-Admin']),
   (req, res) => {
     const { id } = req.params
     const timestamp = new Date().toISOString()
@@ -556,7 +551,7 @@ app.get('/v1/usage/ai/summarize', validateToken, (req, res) => {
 })
 
 // GET /v1/admin/usage/ai - Get all usage data (Admin only)
-app.get('/v1/admin/usage/ai', validateToken, requireRole(['admin', 'super_admin']), (req, res) => {
+app.get('/v1/admin/usage/ai', validateToken, requireRole(['API-Admin']), (req, res) => {
   const { from_date, to_date } = req.query
   const timestamp = new Date().toISOString()
 
@@ -603,53 +598,48 @@ app.get('/v1/admin/usage/ai', validateToken, requireRole(['admin', 'super_admin'
 })
 
 // GET /v1/admin/usage/ai/summarize - Admin usage summary (mit Security)
-app.get(
-  '/v1/admin/usage/ai/summarize',
-  validateToken,
-  requireRole(['admin', 'super_admin']),
-  (req, res) => {
-    const { from_date, to_date, by } = req.query
-    const timestamp = new Date().toISOString()
+app.get('/v1/admin/usage/ai/summarize', validateToken, requireRole(['API-Admin']), (req, res) => {
+  const { from_date, to_date, by } = req.query
+  const timestamp = new Date().toISOString()
 
-    console.log(`[${timestamp}] Admin: Getting AI usage summary`)
-    console.log(
-      `[${timestamp}] Admin summary parameters - from: ${from_date || 'none'}, to: ${to_date || 'none'}, by: ${by || 'none'}`,
-    )
+  console.log(`[${timestamp}] Admin: Getting AI usage summary`)
+  console.log(
+    `[${timestamp}] Admin summary parameters - from: ${from_date || 'none'}, to: ${to_date || 'none'}, by: ${by || 'none'}`,
+  )
 
-    const adminSummary = {
-      total_tokens: 15000,
-      total_cost: 0.1875,
-      by_model: {
-        'gpt-4': { tokens: 8000, cost: 0.24 },
-        'gpt-3.5-turbo': { tokens: 7000, cost: 0.0105 },
-      },
-      by_user: {
-        admin: { tokens: 5000, cost: 0.0625 },
-        user1: { tokens: 4000, cost: 0.05 },
-        user2: { tokens: 6000, cost: 0.075 },
-      },
-      by_period: {
-        '2024-01': { tokens: 15000, cost: 0.1875 },
-      },
-    }
+  const adminSummary = {
+    total_tokens: 15000,
+    total_cost: 0.1875,
+    by_model: {
+      'gpt-4': { tokens: 8000, cost: 0.24 },
+      'gpt-3.5-turbo': { tokens: 7000, cost: 0.0105 },
+    },
+    by_user: {
+      admin: { tokens: 5000, cost: 0.0625 },
+      user1: { tokens: 4000, cost: 0.05 },
+      user2: { tokens: 6000, cost: 0.075 },
+    },
+    by_period: {
+      '2024-01': { tokens: 15000, cost: 0.1875 },
+    },
+  }
 
-    console.log(
-      `[${timestamp}] Admin summary data - Total tokens: ${adminSummary.total_tokens}, Total cost: $${adminSummary.total_cost}`,
-    )
-    console.log(
-      `[${timestamp}] Admin users in summary: ${Object.keys(adminSummary.by_user).join(', ')}`,
-    )
+  console.log(
+    `[${timestamp}] Admin summary data - Total tokens: ${adminSummary.total_tokens}, Total cost: $${adminSummary.total_cost}`,
+  )
+  console.log(
+    `[${timestamp}] Admin users in summary: ${Object.keys(adminSummary.by_user).join(', ')}`,
+  )
 
-    res.status(200).json({
-      summary: adminSummary,
-    })
-  },
-)
+  res.status(200).json({
+    summary: adminSummary,
+  })
+})
 
 // Super Admin Endpunkte
 
 // GET /v1/admin/users - Get all users (Super Admin only)
-app.get('/v1/admin/users', validateToken, requireRole(['super_admin']), (req, res) => {
+app.get('/v1/admin/users', validateToken, requireRole(['API-Admin']), (req, res) => {
   const timestamp = new Date().toISOString()
 
   console.log(`[${timestamp}] Super Admin: Getting all users`)
@@ -677,7 +667,7 @@ app.get('/v1/admin/users', validateToken, requireRole(['super_admin']), (req, re
 })
 
 // PUT /v1/admin/users/{userId}/role - Update user role (Super Admin only)
-app.put('/v1/admin/users/:userId/role', validateToken, requireRole(['super_admin']), (req, res) => {
+app.put('/v1/admin/users/:userId/role', validateToken, requireRole(['API-Admin']), (req, res) => {
   const { userId } = req.params
   const { role } = req.body
   const timestamp = new Date().toISOString()
@@ -701,7 +691,7 @@ app.put('/v1/admin/users/:userId/role', validateToken, requireRole(['super_admin
 app.put(
   '/v1/admin/users/:userId/deactivate',
   validateToken,
-  requireRole(['super_admin']),
+  requireRole(['API-Admin']),
   (req, res) => {
     const { userId } = req.params
     const timestamp = new Date().toISOString()
@@ -819,7 +809,7 @@ app.listen(port, () => {
   console.log(
     `[${timestamp}]   GET  http://localhost:${port}/v1/admin/usage/ai/summarize - Admin usage summary`,
   )
-  console.log(`[${timestamp}] Super Admin Endpunkte:`)
+  console.log(`[${timestamp}] Admin Endpunkte (User Management):`)
   console.log(`[${timestamp}]   GET  http://localhost:${port}/v1/admin/users - Get all users`)
   console.log(
     `[${timestamp}]   PUT  http://localhost:${port}/v1/admin/users/:id/role - Update user role`,
@@ -833,7 +823,8 @@ app.listen(port, () => {
   console.log(`[${timestamp}]   GET  http://localhost:${port}/api/health - Health check`)
   console.log(`[${timestamp}] ========================================`)
   console.log(`[${timestamp}] JWT Token Testing:`)
-  console.log(`[${timestamp}]   ?token=admin - Für Admin-Rollen`)
-  console.log(`[${timestamp}]   ?token=super_admin - Für Super-Admin-Rollen`)
+  console.log(`[${timestamp}]   ?token=admin - Für API-Admin-Rolle`)
+  console.log(`[${timestamp}]   ?token=default - Für API-Default-Rolle`)
+  console.log(`[${timestamp}]   ?token=stream - Für API-Stream-Rolle`)
   console.log(`[${timestamp}] ========================================`)
 })

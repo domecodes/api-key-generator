@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  debugToken,
   getHighestRole,
   getToken,
   getTokenInfo,
@@ -11,10 +12,7 @@ import {
 import ApiKeyCreateModal from '@/components/apikey/ApiKeyCreateModal.vue'
 import ApiKeyEditModal from '@/components/apikey/ApiKeyEditModal.vue'
 import ApiKeyTable from '@/components/apikey/ApiKeyTable.vue'
-import UsageCapabilitiesGrid from '@/components/usage/UsageCapabilitiesGrid.vue'
-import UsageHeader from '@/components/usage/UsageHeader.vue'
-import UsageSidebarPanel from '@/components/usage/UsageSidebarPanel.vue'
-import UsageSpendChart from '@/components/usage/UsageSpendChart.vue'
+import UsageTabs from '@/components/usage/UsageTabs.vue'
 import { apiKeyService } from '@/services/apiService'
 import { computed, onMounted, ref } from 'vue'
 
@@ -48,23 +46,18 @@ const showSuccessMessage = ref(false)
 const isCreating = ref(false)
 
 const newKeyName = ref('')
-const newKeyPermissions = ref<string[]>(['read'])
+const newKeyPermissions = ref<string[]>(['api-access'])
 const createdSecret = ref('')
 const createdKeyName = ref('')
 const createdKeyPermissions = ref<string[]>([])
 const createdKeyValidUntil = ref('')
 const createdKeyCreatedBy = ref('')
-const activeSidebar = ref<'api' | 'usage' | 'admin-keys' | 'admin-usage' | 'user-management'>('api')
+const activeSidebar = ref<'api' | 'usage'>('api')
 const editingKey = ref<string | null>(null)
 const editingName = ref('')
 const showRevokeSuccessMessage = ref(false)
 
-const permissionOptions = [
-  { value: 'read', label: 'Read' },
-  { value: 'write', label: 'Write' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'delete', label: 'Delete' },
-]
+// Permission options removed - no longer needed for new role-based system
 
 // Benutzerinformationen aus Keycloak
 const userProfile = computed(() => {
@@ -84,26 +77,23 @@ const userProfile = computed(() => {
 // Rollenbasierte Computed Properties
 const userRoles = computed(() => getUserRoles())
 const highestRole = computed(() => getHighestRole())
-const isAdmin = computed(() => hasPermission('canViewAdminUsage'))
-const isSuperAdmin = computed(() => hasPermission('canManageUsers'))
+const isApiAdmin = computed(() => hasPermission('canViewAdminUsage'))
 const canCreateKeys = computed(() => hasPermission('canCreateKeys'))
 const canEditKeys = computed(() => hasPermission('canEditOwnKeys'))
 const canDeactivateKeys = computed(() => hasPermission('canDeactivateOwnKeys'))
 const canViewUsage = computed(() => hasPermission('canViewOwnUsage'))
 
 // Rollen-basierte UI-Elemente
-const showAdminSection = computed(() => isAdmin.value)
-const showSuperAdminSection = computed(() => isSuperAdmin.value)
-const showUserManagement = computed(() => isSuperAdmin.value)
+const showAdminSection = computed(() => isApiAdmin.value)
 
 // Rollen-Farben für Template
 const getRoleColor = (role: string) => {
   switch (role) {
-    case 'user':
+    case 'api-default':
       return 'bg-blue-100 text-blue-800'
-    case 'admin':
+    case 'api-stream':
       return 'bg-green-100 text-green-800'
-    case 'super_admin':
+    case 'api-admin':
       return 'bg-purple-100 text-purple-800'
     default:
       return 'bg-gray-100 text-gray-800'
@@ -129,6 +119,21 @@ const toggleDebugInfo = () => {
   if (showDebugInfo.value) {
     loadTokenInfo()
   }
+}
+
+// Token-Debug-Funktion
+const debugTokenInfo = () => {
+  debugToken()
+  console.log('🔍 Zusätzliche Debug-Info:')
+  console.log('User Roles:', userRoles.value)
+  console.log('Highest Role:', highestRole.value)
+  console.log('Is API Admin:', isApiAdmin.value)
+  console.log('Show Admin Section:', showAdminSection.value)
+  console.log('Can View Admin Usage:', hasPermission('canViewAdminUsage'))
+  console.log('Can Create Keys:', hasPermission('canCreateKeys'))
+  console.log('Can Edit Keys:', hasPermission('canEditOwnKeys'))
+  console.log('Can Deactivate Keys:', hasPermission('canDeactivateOwnKeys'))
+  console.log('Can View Usage:', hasPermission('canViewOwnUsage'))
 }
 
 // Logout-Funktion
@@ -248,7 +253,7 @@ const showKeyDisplayModal = ref(false)
 function openModal() {
   showCreateModal.value = true
   newKeyName.value = ''
-  newKeyPermissions.value = ['read']
+  newKeyPermissions.value = ['api-access']
   createdSecret.value = ''
   createdKeyName.value = ''
   createdKeyPermissions.value = []
@@ -259,7 +264,7 @@ function openModal() {
 function closeCreateModal() {
   showCreateModal.value = false
   newKeyName.value = ''
-  newKeyPermissions.value = ['read']
+  newKeyPermissions.value = ['api-access']
   createdSecret.value = ''
   createdKeyName.value = ''
   createdKeyPermissions.value = []
@@ -370,87 +375,7 @@ onMounted(() => {
           Usage
         </button>
 
-        <!-- Admin-Bereich -->
-        <div v-if="showAdminSection" class="mt-4 pt-4 border-t border-gray-200">
-          <div class="text-xs font-medium text-gray-500 mb-2 px-3">Admin</div>
-          <button
-            @click="activeSidebar = 'admin-keys'"
-            :class="
-              activeSidebar === 'admin-keys'
-                ? 'bg-blue-50 text-blue-700 font-semibold'
-                : 'text-gray-700'
-            "
-            class="flex items-center gap-3 px-3 py-2 rounded transition-colors"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
-            Alle API Keys
-          </button>
-          <button
-            @click="activeSidebar = 'admin-usage'"
-            :class="
-              activeSidebar === 'admin-usage'
-                ? 'bg-blue-50 text-blue-700 font-semibold'
-                : 'text-gray-700'
-            "
-            class="flex items-center gap-3 px-3 py-2 rounded transition-colors"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-            Alle Usage
-          </button>
-        </div>
-
-        <!-- Super Admin-Bereich -->
-        <div v-if="showSuperAdminSection" class="mt-4 pt-4 border-t border-gray-200">
-          <div class="text-xs font-medium text-gray-500 mb-2 px-3">Super Admin</div>
-          <button
-            @click="activeSidebar = 'user-management'"
-            :class="
-              activeSidebar === 'user-management'
-                ? 'bg-blue-50 text-blue-700 font-semibold'
-                : 'text-gray-700'
-            "
-            class="flex items-center gap-3 px-3 py-2 rounded transition-colors"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-              />
-            </svg>
-            Benutzer-Verwaltung
-          </button>
-        </div>
+        <!-- Admin-Bereich entfernt - API keys ist für alle Nutzer gleich -->
       </nav>
     </aside>
     <div class="flex-1 flex flex-col min-h-screen">
@@ -465,6 +390,16 @@ onMounted(() => {
             title="Debug Info"
           >
             🔧 Debug
+          </button>
+
+          <!-- Token-Debug-Button (nur in Entwicklung) -->
+          <button
+            v-if="isDevelopment"
+            @click="debugTokenInfo"
+            class="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-600 rounded transition-colors"
+            title="Token Debug"
+          >
+            🔍 Token
           </button>
 
           <!-- Rollen-Anzeige -->
@@ -510,11 +445,22 @@ onMounted(() => {
             <div><strong>User ID:</strong> {{ tokenInfo.userId }}</div>
             <div><strong>Email:</strong> {{ tokenInfo.email }}</div>
             <div><strong>Name:</strong> {{ tokenInfo.name }}</div>
-            <div><strong>Roles:</strong> {{ tokenInfo.roles.join(', ') }}</div>
-            <div><strong>Client Roles:</strong> {{ tokenInfo.clientRoles.join(', ') }}</div>
+            <div><strong>Given Name:</strong> {{ tokenInfo.givenName }}</div>
+            <div><strong>Family Name:</strong> {{ tokenInfo.familyName }}</div>
+            <div><strong>Preferred Username:</strong> {{ tokenInfo.preferredUsername }}</div>
+            <div><strong>Groups:</strong> {{ tokenInfo.groups.join(', ') }}</div>
             <div><strong>Issued At:</strong> {{ tokenInfo.issuedAt?.toLocaleString() }}</div>
             <div><strong>Expires At:</strong> {{ tokenInfo.expiresAt?.toLocaleString() }}</div>
             <div><strong>Is Expired:</strong> {{ tokenInfo.isExpired ? 'Yes' : 'No' }}</div>
+            <hr class="my-2 border-yellow-300" />
+            <div><strong>User Roles:</strong> {{ userRoles.join(', ') }}</div>
+            <div><strong>Highest Role:</strong> {{ highestRole }}</div>
+            <div><strong>Is API Admin:</strong> {{ isApiAdmin ? 'Yes' : 'No' }}</div>
+            <div><strong>Show Admin Section:</strong> {{ showAdminSection ? 'Yes' : 'No' }}</div>
+            <div>
+              <strong>Can View Admin Usage:</strong>
+              {{ hasPermission('canViewAdminUsage') ? 'Yes' : 'No' }}
+            </div>
           </div>
           <div v-else class="text-xs text-yellow-600">Token-Informationen werden geladen...</div>
         </div>
@@ -571,7 +517,7 @@ onMounted(() => {
             :model-value="showEditModal"
             :name="editModalName"
             :permissions="editModalPermissions.join(', ')"
-            :permission-options="permissionOptions.map((p: any) => p.label)"
+            :permission-options="[]"
             @update:name="(val) => (editModalName = val)"
             @update:permissions="
               (val) => (editModalPermissions = val.split(', ').map((p: any) => p.trim()))
@@ -584,7 +530,7 @@ onMounted(() => {
             :model-value="showCreateModal"
             :name="newKeyName"
             :permissions="newKeyPermissions.join(', ')"
-            :permission-options="permissionOptions.map((p: any) => p.label)"
+            :permission-options="[]"
             :is-creating="isCreating"
             @update:name="(val) => (newKeyName = val)"
             @update:permissions="
@@ -649,126 +595,11 @@ onMounted(() => {
         </div>
 
         <!-- Usage Section -->
-        <div v-else-if="activeSidebar === 'usage'" class="max-w-7xl mx-auto">
-          <UsageHeader />
-          <div class="flex flex-col lg:flex-row gap-6 mb-6">
-            <UsageSpendChart />
-            <UsageSidebarPanel />
-          </div>
-          <UsageCapabilitiesGrid />
+        <div v-else-if="activeSidebar === 'usage'">
+          <UsageTabs />
         </div>
 
-        <!-- Admin: Alle API Keys Section -->
-        <div v-else-if="activeSidebar === 'admin-keys'" class="max-w-6xl mx-auto">
-          <div class="flex justify-between items-center mb-6">
-            <div>
-              <h1 class="text-2xl font-bold text-gray-800 mb-1">Alle API Keys (Admin)</h1>
-              <p class="text-gray-600 text-sm max-w-2xl">
-                Als Administrator können Sie alle API-Keys aller Benutzer einsehen und verwalten.
-              </p>
-            </div>
-          </div>
-          <div class="overflow-x-auto">
-            <div class="bg-white rounded-lg shadow">
-              <div class="p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Admin API Keys Übersicht</h3>
-                <p class="text-gray-600 mb-4">
-                  Hier werden alle API-Keys aller Benutzer angezeigt.
-                </p>
-                <!-- Hier würde die Admin API Keys Tabelle kommen -->
-                <div class="text-center py-8 text-gray-500">
-                  <svg
-                    class="w-12 h-12 mx-auto mb-4 text-gray-300"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                    />
-                  </svg>
-                  <p>Admin API Keys Verwaltung</p>
-                  <p class="text-sm">Implementierung in Entwicklung...</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Admin: Alle Usage Section -->
-        <div v-else-if="activeSidebar === 'admin-usage'" class="max-w-7xl mx-auto">
-          <div class="flex justify-between items-center mb-6">
-            <div>
-              <h1 class="text-2xl font-bold text-gray-800 mb-1">Alle Usage (Admin)</h1>
-              <p class="text-gray-600 text-sm max-w-2xl">
-                Als Administrator können Sie den API-Verbrauch aller Benutzer einsehen.
-              </p>
-            </div>
-          </div>
-          <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-800 mb-4">Admin Usage Übersicht</h3>
-            <p class="text-gray-600 mb-4">Hier werden alle Usage-Daten aller Benutzer angezeigt.</p>
-            <!-- Hier würde die Admin Usage Übersicht kommen -->
-            <div class="text-center py-8 text-gray-500">
-              <svg
-                class="w-12 h-12 mx-auto mb-4 text-gray-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                />
-              </svg>
-              <p>Admin Usage Verwaltung</p>
-              <p class="text-sm">Implementierung in Entwicklung...</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Super Admin: Benutzer-Verwaltung Section -->
-        <div v-else-if="activeSidebar === 'user-management'" class="max-w-6xl mx-auto">
-          <div class="flex justify-between items-center mb-6">
-            <div>
-              <h1 class="text-2xl font-bold text-gray-800 mb-1">
-                Benutzer-Verwaltung (Super Admin)
-              </h1>
-              <p class="text-gray-600 text-sm max-w-2xl">
-                Als Super Administrator können Sie alle Benutzer verwalten und deren Rollen ändern.
-              </p>
-            </div>
-          </div>
-          <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-800 mb-4">Benutzer-Verwaltung</h3>
-            <p class="text-gray-600 mb-4">
-              Hier können Sie alle Benutzer einsehen und deren Rollen verwalten.
-            </p>
-            <!-- Hier würde die Benutzer-Verwaltung kommen -->
-            <div class="text-center py-8 text-gray-500">
-              <svg
-                class="w-12 h-12 mx-auto mb-4 text-gray-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-                />
-              </svg>
-              <p>Benutzer-Verwaltung</p>
-              <p class="text-sm">Implementierung in Entwicklung...</p>
-            </div>
-          </div>
-        </div>
+        <!-- Admin: Alle API Keys Section entfernt - API keys ist für alle Nutzer gleich -->
       </main>
     </div>
 
