@@ -1,10 +1,10 @@
 // API Key Types
-export interface DekaRagApiKeyRequest {
+export interface MobaRagApiKeyRequest {
   name: string
   permissions: string[]
 }
 
-export interface DekaRagApiKey {
+export interface MobaRagApiKey {
   id: string
   name: string
   permissions: string[]
@@ -13,7 +13,7 @@ export interface DekaRagApiKey {
   is_active: boolean
 }
 
-export interface DekaRagApiKeyWithSecret extends DekaRagApiKey {
+export interface MobaRagApiKeyWithSecret extends MobaRagApiKey {
   secret: string
 }
 
@@ -60,19 +60,19 @@ export interface AdminUsageAISummaryGetV1Params {
 
 // API Response Types
 export interface CreateApiKeyV1Result {
-  data: DekaRagApiKeyWithSecret
+  data: MobaRagApiKeyWithSecret
 }
 
 export interface GetAllApiKeysV1Result {
-  data: DekaRagApiKey[]
+  data: MobaRagApiKey[]
 }
 
 export interface GetApiKeyV1Result {
-  data: DekaRagApiKey
+  data: MobaRagApiKey
 }
 
 export interface RotateKeyV1Result {
-  data: DekaRagApiKeyWithSecret
+  data: MobaRagApiKeyWithSecret
 }
 
 export interface DeactivateKeyV1Result {
