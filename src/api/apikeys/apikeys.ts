@@ -3,11 +3,11 @@ import type { AxiosRequestConfig, AxiosResponse } from 'axios'
 import type {
   CreateApiKeyV1Result,
   DeactivateKeyV1Result,
-  DekaRagApiKey,
-  DekaRagApiKeyRequest,
-  DekaRagApiKeyWithSecret,
   GetAllApiKeysV1Result,
   GetApiKeyV1Result,
+  MobaRagApiKey,
+  MobaRagApiKeyRequest,
+  MobaRagApiKeyWithSecret,
   RotateKeyV1Result,
 } from '../types/types'
 
@@ -15,18 +15,18 @@ import type {
  * Create a new API token
  * @summary Create a new API token
  */
-export const createApiKeyV1 = <TData = AxiosResponse<DekaRagApiKeyWithSecret>>(
-  dekaRagApiKeyRequest: DekaRagApiKeyRequest,
+const createApiKeyV1 = <TData = AxiosResponse<MobaRagApiKeyWithSecret>>(
+  mobaRagApiKeyRequest: MobaRagApiKeyRequest,
   options?: AxiosRequestConfig,
 ): Promise<TData> => {
-  return api.post('/apikeys', dekaRagApiKeyRequest, options)
+  return api.post('/apikeys', mobaRagApiKeyRequest, options)
 }
 
 /**
  * List all API tokens for the current user
  * @summary List all API tokens for the current user
  */
-export const getAllApiKeysV1 = <TData = AxiosResponse<DekaRagApiKey[]>>(
+const getAllApiKeysV1 = <TData = AxiosResponse<MobaRagApiKey[]>>(
   options?: AxiosRequestConfig,
 ): Promise<TData> => {
   return api.get('/apikeys', options)
@@ -36,7 +36,7 @@ export const getAllApiKeysV1 = <TData = AxiosResponse<DekaRagApiKey[]>>(
  * Get a single API token by ID
  * @summary Get a single API token by ID
  */
-export const getApiKeyV1 = <TData = AxiosResponse<DekaRagApiKey>>(
+const getApiKeyV1 = <TData = AxiosResponse<MobaRagApiKey>>(
   id: string,
   options?: AxiosRequestConfig,
 ): Promise<TData> => {
@@ -48,31 +48,42 @@ export const getApiKeyV1 = <TData = AxiosResponse<DekaRagApiKey>>(
  * @summary Rotate an API token (deactivates old, creates new)
  * @description Deactivates the given API token and creates a new one with the provided parameters.
  */
-export const rotateKeyV1 = <TData = AxiosResponse<DekaRagApiKeyWithSecret>>(
+const rotateKeyV1 = <TData = AxiosResponse<MobaRagApiKeyWithSecret>>(
   id: string,
-  dekaRagApiKeyRequest: DekaRagApiKeyRequest,
+  mobaRagApiKeyRequest: MobaRagApiKeyRequest,
   options?: AxiosRequestConfig,
 ): Promise<TData> => {
-  return api.post(`/apikeys/${id}/rotate`, dekaRagApiKeyRequest, options)
+  return api.post(`/apikeys/${id}/rotate`, mobaRagApiKeyRequest, options)
 }
 
 /**
  * Deactivate an API token
  * @summary Deactivate an API token
  */
-export const deactivateKeyV1 = <TData = AxiosResponse<void>>(
+const deactivateKeyV1 = <TData = AxiosResponse<void>>(
   id: string,
   options?: AxiosRequestConfig,
 ): Promise<TData> => {
   return api.put(`/apikeys/${id}/deactivate`, undefined, options)
 }
 
+// Orval-style return object
+const apikeysApi = {
+  createApiKeyV1,
+  getAllApiKeysV1,
+  getApiKeyV1,
+  rotateKeyV1,
+  deactivateKeyV1,
+}
+
+export default apikeysApi
+
 // Export types for convenience
 export type {
   CreateApiKeyV1Result,
   DeactivateKeyV1Result,
-  DekaRagApiKeyRequest,
   GetAllApiKeysV1Result,
   GetApiKeyV1Result,
+  MobaRagApiKeyRequest,
   RotateKeyV1Result,
 }

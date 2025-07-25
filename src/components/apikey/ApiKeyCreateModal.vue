@@ -60,23 +60,12 @@ import { ref, watch } from 'vue'
 const props = defineProps<{
   modelValue: boolean
   name: string
-  permissions: string
-  permissionOptions: string[]
   isCreating: boolean
 }>()
-const emits = defineEmits(['update:name', 'update:permissions', 'cancel', 'create'])
+const emits = defineEmits(['update:name', 'cancel', 'create'])
 const localName = ref(props.name)
-const localPermissions = ref(props.permissions)
 watch(
   () => props.name,
   (val) => (localName.value = val),
 )
-watch(
-  () => props.permissions,
-  (val) => (localPermissions.value = val),
-)
-function setPermissions(perm: string) {
-  localPermissions.value = perm
-  emits('update:permissions', perm)
-}
 </script>

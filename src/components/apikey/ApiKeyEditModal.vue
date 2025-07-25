@@ -4,7 +4,7 @@
     class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
   >
     <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-md relative">
-      <h3 class="text-xl font-bold mb-4">Edit secret key</h3>
+      <h3 class="text-xl font-bold mb-4">Rotate secret key</h3>
       <label class="block mb-1 text-sm font-medium"
         >Name <span class="text-gray-400 font-normal">Optional</span></label
       >
@@ -25,7 +25,7 @@
           @click="$emit('save')"
           class="px-4 py-2 rounded bg-green-600 text-white font-medium"
         >
-          Save
+          Rotate
         </button>
       </div>
     </div>
@@ -37,22 +37,11 @@ import { ref, watch } from 'vue'
 const props = defineProps<{
   modelValue: boolean
   name: string
-  permissions: string
-  permissionOptions: string[]
 }>()
-const emits = defineEmits(['update:name', 'update:permissions', 'cancel', 'save'])
+const emits = defineEmits(['update:name', 'cancel', 'save'])
 const localName = ref(props.name)
-const localPermissions = ref(props.permissions)
 watch(
   () => props.name,
   (val) => (localName.value = val),
 )
-watch(
-  () => props.permissions,
-  (val) => (localPermissions.value = val),
-)
-function setPermissions(perm: string) {
-  localPermissions.value = perm
-  emits('update:permissions', perm)
-}
 </script>

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 
 // Legacy interface für Kompatibilität mit bestehenden Komponenten
 interface LegacyApiKey {
+  id: string
   apiKey: string
   name: string
   permissions: string
@@ -25,7 +26,7 @@ export function useModals() {
   const showSuccessMessage = ref(false)
 
   function startEditing(key: LegacyApiKey, keys: MobaRagApiKey[]) {
-    const newKey = keys.find((k: MobaRagApiKey) => k.id === key.apiKey)
+    const newKey = keys.find((k: MobaRagApiKey) => k.id === key.id)
     if (!newKey) return
 
     editModalName.value = newKey.name

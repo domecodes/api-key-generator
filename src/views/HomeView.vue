@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { MobaRagApiKey } from '@/api/types/types'
 import ApiKeyCreateModal from '@/components/apikey/ApiKeyCreateModal.vue'
 import ApiKeyEditModal from '@/components/apikey/ApiKeyEditModal.vue'
 import ApiKeyTable from '@/components/apikey/ApiKeyTable.vue'
@@ -13,6 +14,19 @@ import { useDebug } from '@/composables/useDebug'
 import { useModals } from '@/composables/useModals'
 import { apiKeyService } from '@/services/apiService'
 import { onMounted, ref } from 'vue'
+
+// Legacy interface for backward compatibility
+interface LegacyApiKey {
+  id: string
+  apiKey: string
+  name: string
+  permissions: string
+  createdAt: string
+  createdBy: string
+  validUntil: string
+  lastUsed: string
+  status: string
+}
 
 // Composables verwenden
 const {
@@ -81,12 +95,21 @@ async function saveEditModal() {
       editModalName.value,
       editModalPermissions.value,
     )
+
+    // Show the new key modal with the rotated key data
+    createdSecret.value = data.secret || ''
+    createdKeyName.value = data.name
+    createdKeyPermissions.value = data.permissions
+    createdKeyValidUntil.value = data.expires_at || 'Never'
+    createdKeyCreatedBy.value = userProfile.value?.name || 'Unknown'
+
     await loadKeys()
+    closeEditModal()
+    showKeyDisplayModal.value = true
     showEditSuccess()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Fehler beim Aktualisieren'
   }
-  closeEditModal()
 }
 
 async function createKeyModal() {
@@ -112,6 +135,17 @@ const saveEdit = async (apiKey: string) => {
 const cancelEdit = () => {
   editingKey.value = null
   editingName.value = ''
+}
+
+// Rotate key function
+const startRotating = (key: LegacyApiKey, keys: MobaRagApiKey[]) => {
+  const foundKey = keys.find((k: MobaRagApiKey) => k.id === key.id)
+  if (foundKey) {
+    editModalKey.value = foundKey
+    editModalName.value = foundKey.name
+    editModalPermissions.value = foundKey.permissions
+    showEditModal.value = true
+  }
 }
 
 // Copy API key with success message
@@ -188,10 +222,11 @@ onMounted(() => {
               :keys="legacyKeys"
               :editingKey="editingKey"
               :editingName="editingName"
-              @edit="(key) => startEditing(key, keys)"
+              @edit="(key: LegacyApiKey) => startEditing(key, keys)"
               @save="saveEdit"
               @cancel="cancelEdit"
               @revoke="revokeKey"
+              @rotate="(key: LegacyApiKey) => startRotating(key, keys)"
               @name-input="(val) => (editingName = val)"
             />
           </div>
@@ -205,12 +240,7 @@ onMounted(() => {
           <ApiKeyEditModal
             :model-value="showEditModal"
             :name="editModalName"
-            :permissions="editModalPermissions.join(', ')"
-            :permission-options="[]"
-            @update:name="(val) => (editModalName = val)"
-            @update:permissions="
-              (val) => (editModalPermissions = val.split(', ').map((p: any) => p.trim()))
-            "
+            @update:name="(val: string) => (editModalName = val)"
             @cancel="closeEditModal"
             @save="saveEditModal"
           />
@@ -218,13 +248,8 @@ onMounted(() => {
           <ApiKeyCreateModal
             :model-value="showCreateModal"
             :name="newKeyName"
-            :permissions="newKeyPermissions.join(', ')"
-            :permission-options="[]"
             :is-creating="isCreating"
-            @update:name="(val) => (newKeyName = val)"
-            @update:permissions="
-              (val) => (newKeyPermissions = val.split(', ').map((p: any) => p.trim()))
-            "
+            @update:name="(val: string) => (newKeyName = val)"
             @cancel="closeCreateModal"
             @create="createKeyModal"
           />
@@ -235,7 +260,9 @@ onMounted(() => {
             class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
           >
             <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-md relative">
-              <h3 class="text-xl font-bold mb-2">Speichern Sie Ihren Key</h3>
+              <h3 class="text-xl font-bold mb-2">
+                {{ editModalKey ? 'Neuer rotierter Key' : 'Speichern Sie Ihren Key' }}
+              </h3>
               <p class="mb-4 text-gray-600 text-sm">
                 Bitte speichern Sie Ihren Secret Key an einem sicheren Ort, da
                 <b>Sie ihn nicht mehr anzeigen können</b>.
@@ -294,7 +321,7 @@ onMounted(() => {
 
     <!-- Snackbars -->
     <Snackbar :show="showSuccessMessage" message="API-Key wurde kopiert!" />
-    <Snackbar :show="showEditSuccessMessage" message="Änderungen gespeichert!" />
+    <Snackbar :show="showEditSuccessMessage" message="API-Key erfolgreich rotiert!" />
     <Snackbar :show="showCreateSuccessMessage" message="API-Key erfolgreich erstellt!" />
     <Snackbar :show="showRevokeSuccessMessage" message="API-Key erfolgreich deaktiviert!" />
   </div>

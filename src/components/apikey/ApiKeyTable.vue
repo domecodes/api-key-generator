@@ -7,8 +7,6 @@
         <th class="py-3 px-4 font-semibold">Created</th>
         <th class="py-3 px-4 font-semibold">Last Used</th>
         <th class="py-3 px-4 font-semibold">Expires</th>
-        <th class="py-3 px-4 font-semibold">Created By</th>
-        <th class="py-3 px-4 font-semibold">Permissions</th>
         <th class="py-3 px-4 font-semibold text-right">Actions</th>
       </tr>
     </thead>
@@ -31,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import ApiKeyRow from './ApiKeyRow.vue';
+import ApiKeyRow from './ApiKeyRow.vue'
 
 // Legacy interface for backward compatibility
 interface LegacyApiKey {
@@ -59,4 +57,4 @@ const emits = defineEmits<{
   revoke: [keyId: string]
   'name-input': [value: string]
 }>()
-</script> 
+</script>

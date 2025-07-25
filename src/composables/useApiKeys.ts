@@ -39,7 +39,8 @@ export function useApiKeys(userProfile: any) {
       name: key.name,
       permissions: key.permissions.join(', '),
       createdAt: key.created_at,
-      createdBy: userProfile.value.name,
+      // TODO: createdBy can be retrieved from Keycloak later
+      createdBy: userProfile.value?.name || 'Unknown',
       validUntil: key.expires_at || 'Never',
       lastUsed: 'Never',
       status: key.is_active ? 'active' : 'revoked',
